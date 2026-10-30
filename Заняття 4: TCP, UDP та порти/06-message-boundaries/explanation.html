@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Message Boundaries Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1e1f22; --muted: #5d6068; --card: #ffffff; --line: #e2e0da;
+  --code-bg: #f2f0ea; --accent: #2457c5; --ok: #1f7a43; --warn: #a3520b; --bad: #b3261e;
+  --mark: #fff1b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+    --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+    --mark: #4a3f12;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+  --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+  --mark: #4a3f12;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font: 0.8rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 12px;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.note { color: var(--muted); font-size: 0.92rem; }
+.hl { background: var(--mark); border-radius: 3px; }
+.ann { color: var(--ok); }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.box.warn { border-left: 4px solid var(--warn); }
+.box.key { border-left: 4px solid var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0 12px; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+.tw { overflow-x: auto; }
+nav ol { padding-left: 20px; margin: 8px 0; }
+nav li { margin: 2px 0; }
+svg text { fill: var(--fg); font: 12px ui-monospace, Menlo, monospace; }
+svg .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Demo 6: message boundaries — UDP keeps them, TCP doesn't</h1>
+<p class="sub">Topic 4 (TCP, UDP and ports). Lecturer notes. Folder: <code>06-message-boundaries/</code>. Ports: 9106/udp, 9116/tcp.</p>
+
+<nav class="box">
+<strong>Contents</strong>
+<ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mech">The mechanism</a></li>
+<li><a href="#run">Running it live</a></li>
+<li><a href="#see">What students will see (real output)</a></li>
+<li><a href="#ask">Things to point out or ask</a></li>
+<li><a href="#gotchas">Gotchas and recovery</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+</ol>
+</nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>A sender makes <strong>three calls in a row with no pause</strong>, each carrying one 100-byte message. The messages have visible edges: <code>&lt;MSG-1 ----…---- END-1&gt;</code>, so a merged or split chunk is easy to read.</p>
+<ul>
+<li><strong>UDP:</strong> 3 × <code>sendto()</code> → 3 × <code>recvfrom()</code>, each exactly 100 bytes. Boundaries survive.</li>
+<li><strong>TCP, merge:</strong> 3 × <code>send()</code> → <strong>one</strong> <code>recv()</code> of 300 bytes containing all three messages.</li>
+<li><strong>TCP, split:</strong> one <code>sendall()</code> of 1 MB → 2–3 <code>recv()</code> chunks of unpredictable sizes, even though the receiver asked for 1 MB per call.</li>
+<li><strong>The fix:</strong> a 4-byte length prefix before each message. The receiver gets the same 312-byte lump (or the same random 1 MB pieces) and still recovers exactly 3 (or 4) messages.</li>
+<li><strong>Bonus («відправив і забув»):</strong> the UDP sender run with no receiver at all reports success. No error, the datagrams just vanish.</li>
+</ul>
+<p><strong>Slides it supports:</strong> «UDP — відправив і забув» (no connection, no delivery guarantee, but each datagram is a self-contained unit) and the byte-stream point on the TCP slide (TCP delivers an ordered stream of bytes, not messages). It also answers the question students usually ask next: "so how does HTTP know where a request ends?" (line endings and <code>Content-Length</code>, i.e. framing).</p>
+
+<h2 id="mech">2. The mechanism</h2>
+
+<h3>UDP: one datagram in, one datagram out</h3>
+<p>Each <code>sendto()</code> builds exactly one UDP datagram (one IP packet, or a set of IP fragments that are reassembled before delivery). On the receiving host the kernel queues <strong>whole datagrams</strong> on the socket's receive queue, each with its own length and source address. <code>recvfrom()</code> always dequeues exactly one datagram. It never returns half of one, and never glues two together. If your buffer is smaller than the datagram, the rest is <em>discarded</em>, not saved for the next call. That is the price: UDP preserves boundaries, but if the queue is full or nobody is listening, the datagram is simply dropped. The sender is not told. On loopback, a closed port does trigger an ICMP "port unreachable", but an unconnected UDP socket never reports it to the application. That is why scenario 1b prints success.</p>
+
+<h3>TCP: a byte stream with sequence numbers, not messages</h3>
+<p><code>send()</code> does not send a packet. It <strong>copies bytes into the socket's send buffer</strong> and returns. The TCP stack later cuts that buffer into segments according to MSS, the congestion and receive windows, and Nagle. Each byte has a sequence number. Nothing in the TCP header marks "a message ended here". The PSH flag is only a hint to deliver data promptly. It does not record where a message ends.</p>
+<p>On the receiver, arriving segments are put in order and appended to the <strong>receive buffer</strong>, one contiguous run of bytes. <code>recv(n)</code> returns <em>whatever is already there</em>, up to <code>n</code> bytes, or blocks until at least 1 byte is available. So the size of a <code>recv()</code> result depends on <strong>timing</strong>: how much had arrived when the application asked. It does not depend on how the sender called <code>send()</code>.</p>
+
+<svg viewBox="0 0 640 210" width="100%" role="img" aria-label="Three sends become three segments, which land in one receive buffer and are read by one recv">
+  <rect x="10" y="20" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="38">send(MSG-1)</text>
+  <rect x="10" y="56" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="74">send(MSG-2)</text>
+  <rect x="10" y="92" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="110">send(MSG-3)</text>
+  <text x="200" y="14" class="muted">on the wire (tcpdump)</text>
+  <line x1="135" y1="33" x2="330" y2="33" stroke="currentColor" opacity=".5"/>
+  <line x1="135" y1="69" x2="330" y2="69" stroke="currentColor" opacity=".5"/>
+  <line x1="135" y1="105" x2="330" y2="105" stroke="currentColor" opacity=".5"/>
+  <text x="190" y="28">seg 1:101</text>
+  <text x="190" y="64">seg 101:201</text>
+  <text x="190" y="100">seg 201:301</text>
+  <rect x="335" y="20" width="160" height="98" rx="6" fill="none" stroke="currentColor"/>
+  <text x="345" y="40">receive buffer</text>
+  <text x="345" y="62">[MSG-1][MSG-2][MSG-3]</text>
+  <text x="345" y="84" class="muted">300 bytes, no</text>
+  <text x="345" y="100" class="muted">boundaries kept</text>
+  <line x1="500" y1="69" x2="540" y2="69" stroke="currentColor"/>
+  <text x="545" y="65">recv()</text>
+  <text x="545" y="82">→ 300 B</text>
+  <text x="10" y="150" class="muted">The receiver sleeps 0.5 s after accept(). By then all three segments</text>
+  <text x="10" y="168" class="muted">have arrived and been ACKed; netstat shows Recv-Q = 300. The merge</text>
+  <text x="10" y="186" class="muted">happens in the buffer. It does not happen on the wire.</text>
+</svg>
+
+<h3>Why the 0.5 s sleep is honest</h3>
+<p>Without the sleep the result is a race between the sender and the receiving process waking up. On macOS we measured <code>100+200</code> in 9 of 10 runs and <code>100+100+100</code> once. On Linux it was <code>300</code> 10 of 10. The sleep doesn't create the behaviour. It just picks one ordinary timing on purpose. Any real server that is busy for a moment (GC pause, slow disk, scheduler, a long-running request on the same thread) is in exactly this state. The point for students is that <strong>any of these results is legal TCP</strong>, and correct code must handle all of them. The <code>tcpdump</code> capture proves the sleep didn't change what went over the network. It still shows three separate 100-byte segments, each ACKed.</p>
+
+<h3>The opposite direction: one send, several recv()</h3>
+<p>A 1 MB <code>sendall()</code> is cut into segments (MSS on macOS <code>lo0</code> is 16 332 bytes, as MTU 16 384 minus 52 bytes of headers; on Linux <code>lo</code> it's 65 483). The receiver is already blocked in <code>recv(1000000)</code>. It wakes as soon as the first data lands and gets only what has arrived so far, e.g. 48 996 bytes = 3 × 16 332. The rest comes in later calls. A single <code>recv()</code> also can't return more than the receive buffer holds, so a message larger than the buffer (macOS auto-tunes up to 4 MB, Linux <code>tcp_rmem</code> max is usually 6 MB) can't arrive in one piece.</p>
+
+<h3>Nagle: merging can also happen at the sender</h3>
+<p>With Nagle on (the default, <code>TCP_NODELAY=0</code>), while sent data is still unacknowledged, the stack holds new small writes and sends them together when the ACK comes back. On loopback the ACK returns in microseconds, faster than Python can call <code>send()</code> again, so we saw <strong>no</strong> coalescing on loopback. With 50 ms of artificial delay (<code>tc netem</code>), Nagle merged sends 2 and 3 into one 200-byte segment. So the boundaries can be lost in two places, the sender (Nagle) and the receive buffer. Either way the receiver sees the same thing. <code>sender.py</code> sets <code>TCP_NODELAY=1</code> by default so the wire shows clean 1:1 segments.</p>
+
+<h3>The fix: framing</h3>
+<p>Since TCP won't keep boundaries, the application protocol must encode them itself:</p>
+<ul>
+<li><strong>Delimiter:</strong> HTTP/1.x headers end each line with <code>\r\n</code> and the header block with an empty line. SMTP, Redis RESP and many text protocols work the same way.</li>
+<li><strong>Length prefix:</strong> HTTP <code>Content-Length</code>, HTTP/2 frames (24-bit length), TLS records (16-bit length), WebSocket frames, PostgreSQL and Kafka wire protocols.</li>
+</ul>
+<p><code>receiver.py framed</code> uses the standard loop. Append every <code>recv()</code> result to a buffer, then repeatedly take one whole frame (4-byte big-endian length + payload) while one is complete. If it isn't complete, wait for the next <code>recv()</code>.</p>
+
+<h2 id="run">3. Running it live</h2>
+
+<h3>macOS (native, no Docker, no sudo)</h3>
+<pre><code>cd ~/Projects/sandbox/ports/06-message-boundaries
+./run_demo.sh                 # all scenarios: udp tcp big framed  (~6 s)
+./run_demo.sh tcp             # just one: udp | tcp | big | framed</code></pre>
+<p>Manual, two terminals. Slower, but students see each side:</p>
+<pre><code># Terminal 1 (receiver first!)          # Terminal 2
+python3 receiver.py udp                  python3 sender.py udp
+python3 receiver.py tcp                  python3 sender.py tcp
+python3 receiver.py tcp --delay 0 --bufsize 1000000    python3 sender.py big
+python3 receiver.py framed               python3 sender.py framed
+python3 receiver.py framed --delay 0 --bufsize 1000000 python3 sender.py framed --plus-big</code></pre>
+<p>Show that the bytes are sitting in the kernel buffer (macOS, no sudo needed):</p>
+<pre><code>python3 receiver.py tcp --delay 10       # T1: long pause
+python3 sender.py tcp                    # T2
+netstat -an -p tcp | grep -E 'Proto|9116'   # T2, within 10 s: Recv-Q = 300
+lsof -nP -iTCP:9116                      # optional: which PID owns the socket</code></pre>
+<p class="note">Packet capture on macOS needs <code>sudo tcpdump -i lo0 -n 'tcp port 9116'</code> (or Wireshark with ChmodBPF). Without sudo, use the Docker capture below.</p>
+
+<h3>Linux / Docker (tcpdump, ss, netem)</h3>
+<pre><code>docker build -t demo06-linux .                       # once, needs internet (apt)
+docker run --rm --name demo06-run -v "$PWD":/demo demo06-linux ./run_demo.sh
+docker run --rm --name demo06-cap -v "$PWD":/demo demo06-linux ./capture.sh
+docker run --rm --name demo06-cap --cap-add NET_ADMIN -e NETEM=50ms \
+    -v "$PWD":/demo demo06-linux ./capture.sh      # Nagle visible on the wire</code></pre>
+<p>Recv-Q on Linux: <code>ss -tn "( sport = :9116 or dport = :9116 )"</code> inside the container.</p>
+
+<div class="tw"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>receiver.py</code></td><td><code>udp | tcp | framed</code>; <code>--delay</code> (default 0.5 s), <code>--bufsize</code>, <code>--rcvbuf</code>, <code>--port</code></td></tr>
+<tr><td><code>sender.py</code></td><td><code>udp | tcp | big | framed</code>; <code>--count</code>, <code>--size</code>, <code>--big-size</code> (1 MB), <code>--plus-big</code>, <code>--nagle</code></td></tr>
+<tr><td><code>common.py</code></td><td>message format, short repr, length-prefix helper</td></tr>
+<tr><td><code>run_demo.sh</code></td><td>all scenarios in order; waits for the receiver to say «слухає» before sending</td></tr>
+<tr><td><code>capture.sh</code>, <code>Dockerfile</code></td><td>Linux tcpdump capture, Nagle off vs on, optional <code>NETEM</code> delay</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>real output: macOS, Linux, captures, 10× repeat stats, Recv-Q</td></tr>
+</table></div>
+
+<h2 id="see">4. What students will see (real output, macOS 15.7)</h2>
+<p class="note">From <code>expected_output.txt</code>, section A. Annotations in green are added here, not printed by the scripts.</p>
+
+<h3>1. UDP: 3 sendto → 3 recvfrom</h3>
+<pre><code>--- приймач: python3 receiver.py udp --port 9106
+UDP-приймач слухає 127.0.0.1:9106 (recvfrom по 65536 байтів)
+перша дейтаграма прийшла; далі пауза 0.5 с — нехай решта теж ляже в буфер
+<span class="hl">  recv #1:    100 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-1&gt;'      <span class="ann">← one datagram, intact</span>
+            початки: &lt;MSG-1; кінці: END-1&gt;  від ('127.0.0.1', 51999)
+<span class="hl">  recv #2:    100 байтів</span>  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+            початки: &lt;MSG-2; кінці: END-2&gt;  від ('127.0.0.1', 51999)
+<span class="hl">  recv #3:    100 байтів</span>  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+            початки: &lt;MSG-3; кінці: END-3&gt;  від ('127.0.0.1', 51999)
+Разом recvfrom(): 3 — по одному на кожен sendto()   <span class="ann">← same 0.5 s pause as TCP, yet 3 results</span>
+
+--- 1б. Той самий відправник, але приймача НЕМАЄ:
+sendto(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)  <span class="ann">← "success", nobody listening</span>
+...
+Готово. UDP не знає, чи хтось це отримав: «відправив і забув»</code></pre>
+
+<h3>2. TCP: 3 send → 1 recv (merge)</h3>
+<pre><code>--- відправник: python3 sender.py tcp --port 9116
+Підключено до 127.0.0.1:9116 (TCP_NODELAY=1)          <span class="ann">← Nagle off: each send is its own segment</span>
+send(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)
+send(): 100 байтів  (початки: &lt;MSG-2; кінці: END-2&gt;)
+send(): 100 байтів  (початки: &lt;MSG-3; кінці: END-3&gt;)
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0.5
+Connected: ('127.0.0.1', 58925); буфер прийому ядра 408300 байтів; пауза 0.5 с перед першим recv()
+<span class="hl">  recv #1:    300 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-3&gt;'   <span class="ann">← starts with MSG-1, ends with END-3</span>
+            початки: &lt;MSG-1, &lt;MSG-2, &lt;MSG-3; кінці: END-1&gt;, END-2&gt;, END-3&gt;
+Разом recv(): 1, байтів: 300</code></pre>
+
+<h3>3. TCP: 1 send of 1 MB → several recv (split)</h3>
+<pre><code>sendall(): 1000000 байтів одним викликом
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0 --bufsize 1000000
+<span class="hl">  recv #1:  48996 байтів</span>  b'&lt;MSG-1 -------' ... b'--------'   <span class="ann">← start, no end: a fragment (3 × MSS 16332)</span>
+            початки: &lt;MSG-1; кінці: —
+<span class="hl">  recv #2: 951004 байтів</span>  b'--------------' ... b'- END-1&gt;'   <span class="ann">← end, no start</span>
+            початки: —; кінці: END-1&gt;
+Разом recv(): 2, байтів: 1000000</code></pre>
+<p class="note">Sizes vary every run. The Linux run in the same file gave <code>65482 + 94336 + 840182</code>.</p>
+
+<h3>4 and 4b. Length-prefix framing recovers the messages</h3>
+<pre><code><span class="hl">  recv #1:    312 байтів (сирі байти потоку)</span>        <span class="ann">← same merge as scenario 2 (3 × (4+100))</span>
+      -&gt; повідомлення 1: 100 байтів  b'&lt;MSG-1 -------' ... b'- END-1&gt;'
+      -&gt; повідомлення 2: 100 байтів  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+      -&gt; повідомлення 3: 100 байтів  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+Після розбору кадрів: 3 повідомлення(нь), залишок у буфері: 0 байтів
+
+(4б, with an extra 1 MB frame, receiver not sleeping)
+  recv #4:  48996 байтів (сирі байти потоку)
+      (кадр ще неповний: є 48992 з 1000000 байтів — чекаємо наступний recv)
+  recv #5: 605168 байтів (сирі байти потоку)
+      (кадр ще неповний: є 654160 з 1000000 байтів — чекаємо наступний recv)
+  recv #6: 345840 байтів (сирі байти потоку)
+      -&gt; повідомлення 4: 1000000 байтів  b'&lt;MSG-4 -------' ... b'- END-4&gt;'   <span class="ann">← reassembled</span></code></pre>
+<p class="note">Note in 4b: without the sleep, macOS happened to deliver the three small frames in three separate <code>recv()</code>s. The framing code doesn't care.</p>
+
+<h3>Linux capture: 3 segments on the wire, 1 recv (section C)</h3>
+<pre><code>*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 1:101, ack 1, win 512, length 100
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 101, win 511, length 0     <span class="ann">← kernel ACKs, app still asleep</span>
+*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 101:201, ack 1, win 512, length 100
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 201, win 511, length 0
+*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 201:301, ack 1, win 512, length 100
+   ...
+    сегментів з даними: 3
+--- приймач:
+  recv #1:    300 байтів  b'&lt;MSG-1 -------' ... b'- END-3&gt;'</code></pre>
+
+<h3>Linux with 50 ms netem, Nagle on (section D, B)</h3>
+<pre><code>*  IP 127.0.0.1.54948 &gt; 127.0.0.1.9116: Flags [P.], seq 1:101, ack 1, win 512, length 100
+*  IP 127.0.0.1.54948 &gt; 127.0.0.1.9116: Flags [FP.], seq 101:301, ack 1, win 512, length 200  <span class="ann">← Nagle merged send 2+3 (+FIN)</span>
+    сегментів з даними: 2</code></pre>
+
+<h3>Recv-Q during the pause (section F)</h3>
+<pre><code>macOS:  tcp4     <span class="hl">300</span>      0  127.0.0.1.9116   127.0.0.1.58929   CLOSE_WAIT
+Linux:  CLOSE-WAIT <span class="hl">301</span>    0  127.0.0.1:9116   127.0.0.1:56844</code></pre>
+<p class="note">Linux <code>ss</code> showed 301 rather than 300. Our best explanation (not verified in kernel source) is that it counts the already-received FIN, which also uses one sequence number. Either way, 300 bytes are waiting in the kernel while the application hasn't called <code>recv()</code> yet.</p>
+
+<h2 id="ask">5. Things to point out or ask students</h2>
+<ul>
+<li><strong>Before running scenario 2, ask:</strong> "Three sends of 100 bytes. How many recv calls, of what size?" Most will say 3 × 100. Then run it.</li>
+<li><strong>The UDP and TCP receivers sleep the same 0.5 s.</strong> Same timing, different result. The difference is the protocol, not the timing.</li>
+<li>"Where did the boundaries disappear: in the network or in the receiver?" Show the capture. There were 3 segments, so it happened in the receive buffer. (Then: Nagle can also do it at the sender.)</li>
+<li>"If I send 1 MB in one call, do I get 1 MB in one recv?" Scenario 3: no. So <code>data = sock.recv(4096)</code> followed by <code>json.loads(data)</code> is a bug that works on localhost and fails in production.</li>
+<li>"How does a browser know where an HTTP response body ends?" Answer: <code>Content-Length</code> (length prefix), <code>Transfer-Encoding: chunked</code> (length-prefixed chunks), or closing the connection. Headers end at <code>\r\n\r\n</code> (delimiter).</li>
+<li>"Then why not use UDP for everything?" Boundaries come at the cost of no delivery guarantee, no ordering, no flow control, and a size limit of about 64 KB per datagram (less in practice to avoid IP fragmentation). Show 1b again: «відправив і забув».</li>
+<li>UTF-8 trap: a split can land in the middle of a multi-byte character. "ПРИВІТ" is 12 bytes, not 6, so decoding each <code>recv()</code> chunk separately can raise <code>UnicodeDecodeError</code>. Framing has to work on bytes, not characters.</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do if it misbehaves live</h2>
+<div class="box warn">
+<ul>
+<li><strong>Address already in use / port busy:</strong> a receiver from a previous run is still alive. <code>lsof -nP -i :9116 -i :9106</code> then <code>kill &lt;pid&gt;</code>. Or use other ports: <code>UDP_PORT=9206 TCP_PORT=9216 ./run_demo.sh</code>.</li>
+<li><strong>"Порт 9116 закритий"</strong> from the sender: the receiver isn't running yet. Start the receiver first. <code>run_demo.sh</code> handles this itself.</li>
+<li><strong>UDP receiver shows only 2 datagrams (MSG-1 missing):</strong> the sender ran before the receiver had bound. That is UDP behaving correctly, and it makes a good live illustration. We hit this in Docker before adding the readiness wait. <code>run_demo.sh</code> now waits for «слухає».</li>
+<li><strong>Scenario 2 shows <code>100 + 200</code> instead of 300:</strong> only if you ran the receiver with <code>--delay 0</code>. With 0.5 s it was 300 in 20/20 runs across both OSes. If it ever happens, say "great, it just proved the point: sizes depend on timing" and rerun.</li>
+<li><strong>Scenario 3 comes back as one 1 000 000-byte chunk:</strong> not observed in 20 runs. With 200 KB it happened 2 of 10 times on macOS, which is why the default is 1 MB. If it happens, rerun or use <code>--big-size 8000000</code>, which is larger than the maximum receive buffer on both OSes, so it can't fit in one <code>recv()</code>.</li>
+<li><strong><code>--rcvbuf</code> does not make the split deterministic on macOS.</strong> It was tested and the window was already open, so it still sometimes delivered 200 KB in one piece. It's kept only for experiments.</li>
+<li><strong>Nagle on loopback:</strong> don't promise students they'll see coalescing with <code>--nagle</code> on plain loopback. On Linux it didn't happen in 6 of 6 runs. Use the <code>NETEM=50ms</code> run.</li>
+<li><strong>Python version:</strong> scripts are tested with macOS <code>/usr/bin/python3</code> 3.9 and Docker Python 3.12. No third-party packages.</li>
+<li><strong>Docker build needs internet</strong> (apt for tcpdump/iproute2). Build the image before class. <code>docker rm -f demo06-run demo06-cap</code> if a container name is stuck.</li>
+<li><strong>Interleaved output in manual mode:</strong> use two terminals. <code>run_demo.sh</code> prints the sender first, then the receiver, to avoid mixing.</li>
+</ul>
+</div>
+
+<h2 id="fallback">7. 1-minute fallback</h2>
+<div class="box key">
+<p>If nothing runs (no Python, firewall prompt, dead laptop), open <code>expected_output.txt</code> and show these lines in order:</p>
+<ol>
+<li>Section A, scenario 1: <code>Разом recvfrom(): 3</code>. UDP kept 3 messages.</li>
+<li>Section A, scenario 2: <code>recv #1: 300 байтів … початки: &lt;MSG-1, &lt;MSG-2, &lt;MSG-3</code>. TCP merged them.</li>
+<li>Section C: <code>сегментів з даними: 3</code>. Three packets on the wire, yet one recv.</li>
+<li>Section A, scenario 3: <code>48996 + 951004</code>. One send split into two.</li>
+<li>Section A, scenario 4: <code>312 байтів</code> → <code>3 повідомлення</code>. Framing fixes it, which is why HTTP has <code>\r\n</code> and <code>Content-Length</code>.</li>
+</ol>
+</div>
+
+</main>
+</body>
+</html>

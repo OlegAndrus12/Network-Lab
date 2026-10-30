@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="t">01-zero-window — таблиця сокетів, поки клієнт «замерз» (4-та секунда)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./docker_demo.sh</span>                <span class="c"># Linux у Docker</span>
+<span class="cut">…</span>
+<span class="hdr">=== ss -tn (Linux) ===</span>
+State Recv-Q Send-Q  Local Address:Port  Peer Address:Port
+ESTAB 0      <span class="y">1773376</span>     127.0.0.1:58236    127.0.0.1:9101     <span class="c">← клієнт: Send-Q</span>
+ESTAB <span class="r">127168</span> 0           127.0.0.1:9101     127.0.0.1:58236    <span class="c">← сервер: Recv-Q</span>
+
+<span class="p">$</span> <span class="cmd">./run_demo.sh</span>                   <span class="c"># macOS, нативно (інші числа, та сама картина)</span>
+<span class="cut">…</span>
+<span class="hdr">=== netstat -an -p tcp (macOS) ===</span>
+Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)
+tcp4  <span class="r">393216</span>      0  127.0.0.1.9101         127.0.0.1.59035        ESTABLISHED  <span class="c">← сервер</span>
+tcp4       0 <span class="y">187740</span>  127.0.0.1.59035        127.0.0.1.9101         ESTABLISHED  <span class="c">← клієнт</span>
+tcp4       0      0  127.0.0.1.9101         *.*                    LISTEN</pre></div><script>var w=document.querySelector(".win");w.style.minWidth="0";document.title=w.offsetWidth+"x"+w.offsetHeight;w.style.minWidth="";</script></body></html>

@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Демо 6: межі повідомлень</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1e1f22; --muted: #5d6068; --card: #ffffff; --line: #e2e0da;
+  --code-bg: #f2f0ea; --accent: #2457c5; --ok: #1f7a43; --warn: #a3520b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+    --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+  --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a;
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  font: 0.8rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 12px; max-width: 100%;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.ann { color: var(--ok); }
+.note { color: var(--muted); font-size: 0.92rem; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; margin: 14px 0; }
+.box > :first-child { margin-top: 4px; }
+.box.key { border-left: 5px solid var(--accent); }
+.box.warn { border-left: 5px solid var(--warn); }
+.tag { display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2px; }
+.key .tag { color: var(--accent); }
+.warn .tag { color: var(--warn); }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0 12px; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+nav ol { padding-left: 20px; margin: 8px 0; }
+svg text { fill: var(--fg); font: 12px ui-monospace, Menlo, monospace; }
+svg .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>Демо 6. Межі повідомлень: UDP зберігає, TCP — ні</h1>
+<p class="sub">Тема 4 (TCP, UDP та порти). Шпаргалка для лектора. Тека <code>06-message-boundaries/</code>, порти 9106/udp і 9116/tcp. Слайди: «UDP — відправив і забув» і байтовий потік на слайді TCP.</p>
+
+<div class="box key">
+<p><b>Суть за 20 секунд.</b> Відправник робить три виклики підряд по 100 байтів. Кожне повідомлення має видимі краї <code>&lt;MSG-1 ----…---- END-1&gt;</code>, тож злиття чи розрізання видно одразу.</p>
+<ul>
+<li>UDP: 3 × <code>sendto()</code> → 3 × <code>recvfrom()</code> по 100 байтів. Межі збережено.</li>
+<li>TCP: 3 × <code>send()</code> → один <code>recv()</code> на 300 байтів (злиття).</li>
+<li>TCP: один <code>sendall()</code> на 1 МБ → 2–3 шматки випадкового розміру (розрізання).</li>
+<li>Виправлення: 4-байтовий префікс довжини, і приймач знову бачить рівно 3 (або 4) повідомлення.</li>
+</ul>
+</div>
+
+<nav><b>Зміст</b>
+<ol>
+<li><a href="#run">Як запустити</a></li>
+<li><a href="#output">Що означає вивід</a></li>
+<li><a href="#emphasize">На чому наголосити</a></li>
+</ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="run">1. Як запустити</h2>
+
+<h3>Що потрібно</h3>
+<ul>
+<li><b>macOS:</b> лише <code>python3</code> (перевірено з <code>/usr/bin/python3</code> 3.9). Без Docker, без sudo, без сторонніх пакетів.</li>
+<li><b>Docker (Linux):</b> потрібен лише для tcpdump, <code>ss</code> і затримки netem. Образ збирається з інтернетом (apt тягне tcpdump/iproute2), тож <b>зберіть його заздалегідь</b>:
+<pre><code>docker build -t demo06-linux .</code></pre></li>
+<li>Порти 9106/udp і 9116/tcp мають бути вільні.</li>
+</ul>
+
+<h3>Одна команда (macOS)</h3>
+<pre><code>cd ~/Projects/sandbox/ports/06-message-boundaries
+./run_demo.sh              # усі сценарії: udp tcp big framed (~6 с)
+./run_demo.sh tcp framed   # лише вибрані: udp | tcp | big | framed</code></pre>
+<p>Скрипт сам запускає приймач у фоні, чекає, поки той надрукує «слухає», потім запускає відправника, а вже потім друкує вивід приймача, щоб рядки двох програм не перемішувалися.</p>
+
+<h3>Вручну, у двох терміналах (наочніше)</h3>
+<p>Порядок важливий: <b>спершу приймач</b>, потім відправник.</p>
+<div class="tw"><table>
+<tr><th>Термінал 1: приймач</th><th>Термінал 2: відправник</th><th>Сценарій</th></tr>
+<tr><td><code>python3 receiver.py udp</code></td><td><code>python3 sender.py udp</code></td><td>1. UDP</td></tr>
+<tr><td>(нічого)</td><td><code>python3 sender.py udp</code></td><td>1б. «відправив і забув»</td></tr>
+<tr><td><code>python3 receiver.py tcp</code></td><td><code>python3 sender.py tcp</code></td><td>2. Злиття</td></tr>
+<tr><td><code>python3 receiver.py tcp --delay 0 --bufsize 1000000</code></td><td><code>python3 sender.py big</code></td><td>3. Розрізання</td></tr>
+<tr><td><code>python3 receiver.py framed</code></td><td><code>python3 sender.py framed</code></td><td>4. Префікс довжини</td></tr>
+<tr><td><code>python3 receiver.py framed --delay 0 --bufsize 1000000</code></td><td><code>python3 sender.py framed --plus-big</code></td><td>4б. Префікс + 1 МБ</td></tr>
+</table></div>
+
+<p><b>Показати, що байти лежать у буфері ядра</b> (macOS, без sudo):</p>
+<pre><code>python3 receiver.py tcp --delay 10            # Т1: довга пауза перед recv()
+python3 sender.py tcp                         # Т2
+netstat -an -p tcp | grep -E 'Proto|9116'     # Т2, протягом 10 с: Recv-Q = 300</code></pre>
+
+<h3>Docker / Linux: tcpdump і Нейгл</h3>
+<pre><code>docker run --rm --name demo06-run -v "$PWD":/demo demo06-linux ./run_demo.sh
+docker run --rm --name demo06-cap -v "$PWD":/demo demo06-linux ./capture.sh
+docker run --rm --name demo06-cap --cap-add NET_ADMIN -e NETEM=50ms \
+    -v "$PWD":/demo demo06-linux ./capture.sh     # затримка 50 мс: Нейгл видно на дроті</code></pre>
+<p><code>capture.sh</code> двічі проганяє TCP-сценарій під tcpdump на <code>lo</code>: A — <code>TCP_NODELAY=1</code>, B — Нейгл увімкнено (<code>--nagle</code>). Recv-Q у контейнері: <code>ss -tn "( sport = :9116 or dport = :9116 )"</code>.</p>
+<p class="note">Захоплення на самому macOS потребує <code>sudo tcpdump -i lo0 -n 'tcp port 9116'</code> (або Wireshark). Без sudo користуйтеся Docker-варіантом.</p>
+
+<h3>Корисні ключі та змінні</h3>
+<div class="tw"><table>
+<tr><th>Де</th><th>Ключ / змінна</th><th>Що робить</th></tr>
+<tr><td><code>run_demo.sh</code>, <code>capture.sh</code></td><td><code>UDP_PORT</code>, <code>TCP_PORT</code>, <code>PYTHON</code></td><td>інші порти (за замовчуванням 9106/9116) або інший інтерпретатор: <code>UDP_PORT=9206 TCP_PORT=9216 ./run_demo.sh</code></td></tr>
+<tr><td><code>capture.sh</code></td><td><code>NETEM=50ms</code></td><td>затримка на <code>lo</code> через <code>tc netem</code> (RTT = 2 × NETEM), потрібен <code>--cap-add NET_ADMIN</code></td></tr>
+<tr><td><code>receiver.py</code></td><td><code>udp | tcp | framed</code>, <code>--delay</code> (0.5 с), <code>--bufsize</code> (65536), <code>--rcvbuf</code>, <code>--port</code>, <code>--host</code></td><td>пауза перед першим <code>recv()</code>; скільки байтів просити; розмір SO_RCVBUF</td></tr>
+<tr><td><code>sender.py</code></td><td><code>udp | tcp | big | framed</code>, <code>--count</code> (3), <code>--size</code> (100), <code>--big-size</code> (1 000 000), <code>--plus-big</code>, <code>--nagle</code>, <code>--port</code>, <code>--host</code></td><td>за замовчуванням <code>TCP_NODELAY=1</code>; <code>--nagle</code> залишає Нейгла увімкненим</td></tr>
+</table></div>
+
+<h3>Якщо щось пішло не так</h3>
+<ul>
+<li><b>Address already in use</b> — живий приймач з минулого запуску: <code>lsof -nP -i :9116 -i :9106</code>, потім <code>kill &lt;pid&gt;</code>. Або інші порти через <code>UDP_PORT</code>/<code>TCP_PORT</code>.</li>
+<li><b>«Порт 9116 закритий: спершу запустіть receiver.py»</b> — відправник стартував першим. <code>run_demo.sh</code> цього не допускає.</li>
+<li><b>UDP-приймач показав лише 2 дейтаграми (немає MSG-1)</b> — відправник встиг до <code>bind()</code>. Це коректна поведінка UDP і гарна жива ілюстрація «відправив і забув».</li>
+<li><b>Сценарій 2 дав 100 + 200 замість 300</b> — лише якщо приймач запущено з <code>--delay 0</code>. Скажіть «чудово, щойно довели, що розмір залежить від таймінгу» і перезапустіть.</li>
+<li><b>Сценарій 3 прийшов одним шматком 1 000 000</b> — за 20 запусків не траплялося. Якщо станеться: перезапуск або <code>python3 sender.py big --big-size 8000000</code> (більше за максимальний буфер прийому в обох ОС).</li>
+<li><b>Завис контейнер з тим самим іменем</b>: <code>docker rm -f demo06-run demo06-cap</code>.</li>
+</ul>
+
+<div class="box warn">
+<span class="tag">Запасний варіант</span>
+<p>Якщо нічого не запускається, відкрийте <code>expected_output.txt</code> і покажіть по черзі:</p>
+<ol>
+<li>Розділ A, сценарій 1: <code>Разом recvfrom(): 3</code> — UDP зберіг 3 повідомлення.</li>
+<li>Розділ A, сценарій 2: <code>recv #1: 300 байтів</code> з <code>початки: &lt;MSG-1, &lt;MSG-2, &lt;MSG-3</code> — TCP злив.</li>
+<li>Розділ C: <code>сегментів з даними: 3</code> — на дроті три пакети, а <code>recv()</code> один.</li>
+<li>Розділ A, сценарій 3: <code>48996</code> + <code>951004</code> — один send розрізано на два.</li>
+<li>Розділ A, сценарій 4: <code>312 байтів</code> → 3 повідомлення. Кадрування все виправляє.</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="output">2. Що означає вивід</h2>
+<p>Нижче реальний вивід з <code>expected_output.txt</code> (macOS 15.7, якщо не сказано інакше). <span class="ann">Зелені коментарі</span> додано тут, скрипти їх не друкують. Порти клієнта і розміри шматків у сценаріях 3 і 4б щоразу інші.</p>
+
+<h3>Сценарій 1. UDP: 3 × sendto() → 3 × recvfrom()</h3>
+<pre><code>UDP-приймач слухає 127.0.0.1:9106 (recvfrom по 65536 байтів)
+перша дейтаграма прийшла; далі пауза 0.5 с — нехай решта теж ляже в буфер
+  recv #1:    100 байтів  b'&lt;MSG-1 -------' ... b'- END-1&gt;'   <span class="ann">← одна дейтаграма, ціла</span>
+            початки: &lt;MSG-1; кінці: END-1&gt;  від ('127.0.0.1', 51999)
+  recv #2:    100 байтів  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+            початки: &lt;MSG-2; кінці: END-2&gt;  від ('127.0.0.1', 51999)
+  recv #3:    100 байтів  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+            початки: &lt;MSG-3; кінці: END-3&gt;  від ('127.0.0.1', 51999)
+Разом recvfrom(): 3 — по одному на кожен sendto()</code></pre>
+<ul>
+<li><code>recv #N: … байтів</code> — скільки повернув один виклик; далі початок і кінець шматка (середина — лише дефіси).</li>
+<li><code>початки / кінці</code> — які маркери <code>&lt;MSG-N</code> і <code>END-N&gt;</code> є в шматку. Один початок + один кінець = ціле повідомлення.</li>
+<li><code>від (ip, port)</code> — UDP віддає адресу відправника з кожною дейтаграмою: з'єднання немає.</li>
+<li><b>Механізм:</b> кожен <code>sendto()</code> = одна дейтаграма. Ядро тримає в черзі сокета цілі дейтаграми, і <code>recvfrom()</code> завжди знімає рівно одну: не половину і не дві разом. Приймач теж спав 0.5 с, але все одно отримав 3 окремі результати.</li>
+</ul>
+<pre><code>--- 1б. Той самий відправник, але приймача НЕМАЄ:
+sendto(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)   <span class="ann">← «успіх», хоча ніхто не слухає</span>
+...
+Готово. UDP не знає, чи хтось це отримав: «відправив і забув»
+(жодної помилки: дейтаграми просто зникли)</code></pre>
+<p>На loopback ядро навіть отримує ICMP «port unreachable», але непідключений UDP-сокет не повідомляє про це програмі.</p>
+
+<h3>Сценарій 2. TCP: 3 × send() → 1 recv() (злиття)</h3>
+<pre><code>Підключено до 127.0.0.1:9116 (TCP_NODELAY=1)        <span class="ann">← Нейгл вимкнено: кожен send окремим сегментом</span>
+send(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)
+send(): 100 байтів  (початки: &lt;MSG-2; кінці: END-2&gt;)
+send(): 100 байтів  (початки: &lt;MSG-3; кінці: END-3&gt;)
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0.5
+Connected: ('127.0.0.1', 58925); буфер прийому ядра 408300 байтів; пауза 0.5 с перед першим recv()
+  recv #1:    300 байтів  b'&lt;MSG-1 -------' ... b'- END-3&gt;'   <span class="ann">← починається з MSG-1, закінчується END-3</span>
+            початки: &lt;MSG-1, &lt;MSG-2, &lt;MSG-3; кінці: END-1&gt;, END-2&gt;, END-3&gt;
+Разом recv(): 1, байтів: 300</code></pre>
+<ul>
+<li><code>буфер прийому ядра</code> — SO_RCVBUF: 408300 на macOS, 131072 у Linux-контейнері.</li>
+<li><b>Механізм:</b> <code>send()</code> лише копіює байти в буфер відправлення. У заголовку TCP немає поля «тут закінчилося повідомлення», є тільки номери послідовності кожного байта (прапорець PSH — лише підказка «віддай швидше»). На приймачі сегменти дописуються в один суцільний буфер прийому, а <code>recv(n)</code> повертає все, що там уже є, до n байтів.</li>
+</ul>
+
+<svg viewBox="0 0 640 125" width="100%" role="img" aria-label="Три send стають трьома сегментами, які лягають в один буфер прийому і читаються одним recv">
+  <rect x="10" y="20" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="38">send(MSG-1)</text>
+  <rect x="10" y="56" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="74">send(MSG-2)</text>
+  <rect x="10" y="92" width="120" height="26" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+  <text x="20" y="110">send(MSG-3)</text>
+  <text x="185" y="12" class="muted">на дроті (tcpdump)</text>
+  <line x1="135" y1="33" x2="330" y2="33" stroke="currentColor" opacity=".5"/>
+  <line x1="135" y1="69" x2="330" y2="69" stroke="currentColor" opacity=".5"/>
+  <line x1="135" y1="105" x2="330" y2="105" stroke="currentColor" opacity=".5"/>
+  <text x="190" y="28">seg 1:101</text>
+  <text x="190" y="64">seg 101:201</text>
+  <text x="190" y="100">seg 201:301</text>
+  <rect x="335" y="20" width="160" height="98" rx="6" fill="none" stroke="currentColor"/>
+  <text x="345" y="40">буфер прийому</text>
+  <text x="345" y="62">[MSG-1][MSG-2][MSG-3]</text>
+  <text x="345" y="84" class="muted">300 байтів,</text>
+  <text x="345" y="100" class="muted">меж немає</text>
+  <line x1="500" y1="69" x2="540" y2="69" stroke="currentColor"/>
+  <text x="545" y="65">recv()</text>
+  <text x="545" y="82">→ 300 B</text>
+</svg>
+<p class="note">Злиття відбувається в буфері прийому, а не в мережі: tcpdump (нижче) показує три окремі сегменти.</p>
+
+<h3>Чому пауза 0.5 с — це чесно</h3>
+<p>Без паузи результат — це гонка між відправником і пробудженням приймача. З 10 запусків з <code>--delay 0</code>: macOS — <code>100+200</code> 9 разів і <code>100+100+100</code> один раз; Linux — <code>300</code> 10 з 10. Пауза не створює поведінку, а лише вибирає один звичайний таймінг: так виглядає будь-який сервер, що на мить зайнятий (GC, повільний диск, планувальник). З паузою злиття 3 → 1 було у 20 з 20 запусків в обох ОС.</p>
+
+<h3>Сценарій 3. Один send() на 1 МБ → кілька recv() (розрізання)</h3>
+<pre><code>sendall(): 1000000 байтів одним викликом
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0 --bufsize 1000000
+  recv #1:  48996 байтів  b'&lt;MSG-1 -------' ... b'--------'   <span class="ann">← початок без кінця</span>
+            початки: &lt;MSG-1; кінці: —
+  recv #2: 951004 байтів  b'--------------' ... b'- END-1&gt;'   <span class="ann">← кінець без початку</span>
+            початки: —; кінці: END-1&gt;
+Разом recv(): 2, байтів: 1000000</code></pre>
+<ul>
+<li>Приймач просив 1 000 000 байтів за раз, але отримав лише те, що вже встигло прийти. 48996 = 3 × 16332, де 16332 — MSS на <code>lo0</code> macOS (MTU 16384 мінус 52 байти заголовків). На Linux <code>lo</code> MSS 65483.</li>
+<li>Той самий файл, Linux-запуск: <code>65482 + 94336 + 840182</code>. Розміри щоразу інші — і саме це головне.</li>
+<li>Один <code>recv()</code> не поверне більше, ніж вміщує буфер прийому, тож повідомлення, більше за буфер, цілим не прийде ніколи.</li>
+</ul>
+
+<h3>Сценарії 4 і 4б. Префікс довжини відновлює повідомлення</h3>
+<pre><code>send(): 104 байтів (4 байти довжини + 100)  (початки: &lt;MSG-1; кінці: END-1&gt;)
+...
+  recv #1:    312 байтів (сирі байти потоку)          <span class="ann">← те саме злиття: 3 × (4 + 100)</span>
+      -&gt; повідомлення 1: 100 байтів  b'&lt;MSG-1 -------' ... b'- END-1&gt;'
+      -&gt; повідомлення 2: 100 байтів  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+      -&gt; повідомлення 3: 100 байтів  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+Після розбору кадрів: 3 повідомлення(нь), залишок у буфері: 0 байтів</code></pre>
+<p>4б (додатковий кадр на 1 МБ, приймач без паузи):</p>
+<pre><code>  recv #4:  48996 байтів (сирі байти потоку)
+      (кадр ще неповний: є 48992 з 1000000 байтів — чекаємо наступний recv)
+  recv #5: 605168 байтів (сирі байти потоку)
+      (кадр ще неповний: є 654160 з 1000000 байтів — чекаємо наступний recv)
+  recv #6: 345840 байтів (сирі байти потоку)
+      -&gt; повідомлення 4: 1000000 байтів  b'&lt;MSG-4 -------' ... b'- END-4&gt;'   <span class="ann">← зібрано</span>
+Разом recv(): 6, байтів: 1000316</code></pre>
+<ul>
+<li><code>сирі байти потоку</code> — що повернув <code>recv()</code>; <code>-&gt; повідомлення N</code> — що виділив розбір кадрів.</li>
+<li>Цикл стандартний: дописати результат <code>recv()</code> у буфер; поки є 4 байти довжини і стільки ж байтів даних — вийняти кадр; інакше чекати наступний <code>recv()</code>.</li>
+<li>48992 = 48996 − 4 байти заголовка. 1000316 = 3 × 104 + 1000004.</li>
+<li>У 4б на macOS три малі кадри цього разу прийшли трьома окремими <code>recv()</code> по 104 (у Linux — одним на 312). Коду кадрування байдуже.</li>
+</ul>
+
+<h3>tcpdump (Linux у Docker, розділ C): 3 сегменти на дроті → 1 recv()</h3>
+<pre><code>*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 1:101, ack 1, win 512, length 100
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 101, win 511, length 0   <span class="ann">← ядро підтвердило, програма ще спить</span>
+*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 101:201, ack 1, win 512, length 100
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 201, win 511, length 0
+*  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq 201:301, ack 1, win 512, length 100
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 301, win 511, length 0
+    сегментів з даними: 3
+--- приймач:
+  recv #1:    300 байтів  b'&lt;MSG-1 -------' ... b'- END-3&gt;'</code></pre>
+<ul>
+<li><code>*</code> — сегмент з даними (позначка скрипта); <code>[P.]</code> — PSH+ACK; <code>seq 1:101</code> — відносні номери байтів 1–100; <code>ack 101</code> — «чекаю байт 101»; <code>win</code> — вікно прийому (у масштабованих одиницях).</li>
+<li>Опції TCP (<code>options [...]</code>) скрипт вирізає для читабельності.</li>
+<li>ACK відправляє ядро, а не програма: дані вже прийнято й підтверджено, хоча <code>recv()</code> ще не викликали.</li>
+</ul>
+
+<h3>Нейгл із затримкою 50 мс (розділ D, прохід B)</h3>
+<pre><code>*  IP 127.0.0.1.54948 &gt; 127.0.0.1.9116: Flags [P.], seq 1:101, ack 1, win 512, length 100
+*  IP 127.0.0.1.54948 &gt; 127.0.0.1.9116: Flags [FP.], seq 101:301, ack 1, win 512, length 200  <span class="ann">← Нейгл злив send 2 і 3 (+FIN)</span>
+    сегментів з даними: 2</code></pre>
+<p>Поки перший сегмент не підтверджено, алгоритм Нейгла притримує нові дрібні записи і відправляє їх разом. Тобто межі можуть зникнути у двох місцях: у відправника (Нейгл) і в буфері прийому. Приймач в обох випадках отримав 300 байтів одним <code>recv()</code>.</p>
+
+<h3>Recv-Q під час паузи (розділ F)</h3>
+<pre><code>macOS:  tcp4     300      0  127.0.0.1.9116   127.0.0.1.58929   CLOSE_WAIT
+Linux:  CLOSE-WAIT 301    0  127.0.0.1:9116   127.0.0.1:56844</code></pre>
+<p>Recv-Q — байти, які ядро вже прийняло, а програма ще не прочитала. <code>CLOSE_WAIT</code>: відправник уже надіслав FIN, а приймач свій сокет ще не закрив. На Linux <code>ss</code> показав 301: найімовірніше, враховано і FIN, що займає один номер послідовності (у вихідних кодах ядра не перевірено).</p>
+
+<!-- ============================================================ -->
+<h2 id="emphasize">3. На чому наголосити</h2>
+
+<div class="box key">
+<span class="tag">Головне</span>
+<ol>
+<li><b>TCP — це потік байтів, а не повідомлень.</b> Кількість <code>send()</code> ніяк не пов'язана з кількістю <code>recv()</code>.</li>
+<li><b>UDP зберігає межі</b>: одна дейтаграма на вході, одна на виході. Ціна — жодних гарантій доставки: «відправив і забув» (сценарій 1б).</li>
+<li><b>Однаковий таймінг, різний результат.</b> Обидва приймачі спали 0.5 с: UDP дав 3 результати, TCP — 1. Різниця в протоколі, а не в таймінгу.</li>
+<li><b>Межі зникають не в мережі.</b> На дроті 3 сегменти, і кожен підтверджено; злиття сталося в буфері прийому (або у відправника через Нейгла).</li>
+<li><b>Межі мусить кодувати сам протокол застосунку</b>: роздільник (<code>\r\n</code> у HTTP/1.x, SMTP, Redis) або префікс довжини (<code>Content-Length</code>, кадри HTTP/2, записи TLS, WebSocket).</li>
+</ol>
+</div>
+
+<div class="box key">
+<span class="tag">Момент «ага»</span>
+<p>Рядок <code>recv #1: 300 байтів … початки: &lt;MSG-1, &lt;MSG-2, &lt;MSG-3</code> поруч із tcpdump, де <code>сегментів з даними: 3</code>. Три пакети прийшли окремо, а програма побачила одну грудку.</p>
+</div>
+
+<h3>Питання до аудиторії</h3>
+<ul>
+<li><b>Перед сценарієм 2:</b> «Три send по 100 байтів. Скільки буде recv і якого розміру?» — Більшість скаже 3 × 100. Відповідь: один на 300.</li>
+<li><b>«Де зникли межі: у мережі чи в приймачі?»</b> — У буфері прийому: tcpdump показує 3 сегменти. Додатково: Нейгл може злити ще у відправника.</li>
+<li><b>«Якщо відправити 1 МБ одним викликом, чи прийде 1 МБ одним recv?»</b> — Ні (сценарій 3). Тому <code>data = sock.recv(4096)</code>, а потім <code>json.loads(data)</code> — баг, який працює на localhost і падає в продакшені.</li>
+<li><b>«Як браузер знає, де закінчується тіло HTTP-відповіді?»</b> — <code>Content-Length</code> (префікс довжини), <code>Transfer-Encoding: chunked</code> (шматки з довжиною) або закриття з'єднання. Заголовки закінчуються на <code>\r\n\r\n</code> (роздільник).</li>
+<li><b>«То чому б не використовувати UDP для всього?»</b> — Межі коштують відсутності гарантій доставки й порядку, керування потоком, і ліміту приблизно 64 КБ на дейтаграму (на практиці менше, щоб уникнути IP-фрагментації). Покажіть 1б ще раз.</li>
+</ul>
+
+<h3>Які хибні уявлення виправляє демо</h3>
+<ul>
+<li>«Один <code>send()</code> = один пакет = один <code>recv()</code>». Ні: <code>send()</code> лише копіює байти в буфер ядра.</li>
+<li>«Прапорець PSH позначає кінець повідомлення». Ні, це лише підказка доставити швидше.</li>
+<li>«Якщо <code>sendto()</code> не повернув помилку, дані дійшли». Ні: у 1б ніхто не слухав, а помилки немає.</li>
+<li>«<code>recv(n)</code> повертає n байтів». Ні: до n байтів, тобто стільки, скільки вже є.</li>
+<li>Пастка UTF-8: розріз може прийтися посеред багатобайтового символу. «ПРИВІТ» — це 12 байтів, а не 6, тож декодування кожного шматка окремо може дати <code>UnicodeDecodeError</code>. Кадрування працює з байтами, не з символами.</li>
+</ul>
+
+<div class="box warn">
+<span class="tag">Увага</span>
+<ul>
+<li><b>Не обіцяйте злиття Нейглом на звичайному loopback</b> (<code>--nagle</code> без затримки): у Linux не сталося в 6 з 6 запусків, бо ACK повертається швидше, ніж Python робить наступний <code>send()</code>. Показуйте прогін з <code>NETEM=50ms</code>.</li>
+<li><b>Без паузи результати залежать від ОС:</b> macOS зазвичай <code>100+200</code>, Linux — <code>300</code>. Тому в демо пауза 0.5 с.</li>
+<li><b>Розрізання 1 МБ</b> спрацювало у 20 з 20 запусків. З 200 КБ на macOS 2 з 10 разів прийшло одним шматком, тому в демо саме 1 МБ.</li>
+<li><b><code>--rcvbuf</code> не робить розрізання детермінованим на macOS</b>: вікно вже відкрите, і 200 КБ іноді все одно приходили цілими. Ключ лишено тільки для експериментів.</li>
+<li><b>Захоплення на macOS потребує sudo</b>; без нього — Docker-варіант.</li>
+<li>Перевірено: macOS 15.7 з <code>/usr/bin/python3</code> 3.9 і Docker <code>python:3.12-slim</code>. Windows не перевіряли.</li>
+</ul>
+</div>
+
+</main>
+</body>
+</html>

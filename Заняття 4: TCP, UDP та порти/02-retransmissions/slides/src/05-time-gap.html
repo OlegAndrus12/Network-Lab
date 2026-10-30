@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8">
+<!-- Data (real), tshark 4.6.9 on sample_sack.pcap, frame.time_relative:
+     frame 17 [TCP Dup ACK 14#3] 0.026988 s -> frame 26 [TCP Fast Retransmission] 0.032940 s  => 5.952 ms
+     frame 104 last data before silence 0.182040 s -> frame 105 [TCP Retransmission] 0.426048 s => 244.008 ms (tcp.time_delta 0.244)
+     frame 109 0.449921 s -> frame 110 [TCP Retransmission] 0.738057 s => 288.136 ms (tcp.time_delta 0.288) -->
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#fcfcfb}
+body{display:inline-block;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#0b0b0b;--fast:#2a78d6;--rto:#6250d6;--t2:#52514e}
+.root{padding:28px 32px 22px;width:1200px}
+h1{font-size:26px;margin:0 0 4px;font-weight:650}
+.sub{color:var(--t2);font-size:16px;margin:0 0 22px}
+.row{display:grid;grid-template-columns:330px 1fr;align-items:center;margin-bottom:16px}
+.lab{font-size:18px;font-weight:600}
+.lab small{display:block;font-weight:400;font-size:14px;color:var(--t2);font-family:Menlo,monospace;margin-top:2px}
+.track{position:relative;height:34px;border-left:1px solid #b9b8b2}
+.bar{position:absolute;left:0;top:0;height:34px;border-radius:0 4px 4px 0}
+.val{position:absolute;top:0;line-height:34px;font-size:20px;font-weight:700;padding-left:10px;white-space:nowrap}
+.axis{display:grid;grid-template-columns:330px 1fr;font-size:14px;color:var(--t2)}
+.ticks{position:relative;height:20px;border-top:1px solid #b9b8b2}
+.ticks span{position:absolute;top:4px;white-space:nowrap;transform:translateX(-50%)}
+.foot{margin-top:14px;font-size:14px;color:var(--t2)}
+</style></head><body><div class="root" id="r">
+<h1>Скільки чекає відправник до повтору</h1>
+<p class="sub">Реальні мітки часу з sample_sack.pcap (tshark 4.6.9). RTT у демо ≈ 12 мс; мінімальний RTO у Linux 200 мс.</p>
+<div id="rows"></div>
+<div class="axis"><span></span><div class="ticks" id="ticks"></div></div>
+<p class="foot">Спосіб 1: від Dup ACK #3 (кадр 17) до Fast Retransmission (кадр 26). Спосіб 2: пауза перед TCP Retransmission (кадри 105 і 110).</p>
+</div>
+<script>
+const M=350;
+const R=[
+ ["Швидкий повтор","кадри 17 → 26",5.952,"--fast","6 мс"],
+ ["Таймер RTO","кадри 104 → 105",244.008,"--rto","244 мс"],
+ ["Таймер RTO (ще раз)","кадри 109 → 110",288.136,"--rto","288 мс"],
+];
+const el=document.getElementById('rows');
+for(const [l,s,v,c,t] of R){
+ el.insertAdjacentHTML('beforeend',`<div class="row"><div class="lab">${l}<small>${s}</small></div><div class="track"><div class="bar" style="width:${Math.max(v/M*100,0.4)}%;background:var(${c})"></div><span class="val" style="left:${v/M*100}%">${t}</span></div></div>`);
+}
+const tk=document.getElementById('ticks');
+for(let x=0;x<=300;x+=50) tk.insertAdjacentHTML('beforeend',`<span style="left:${x/M*100}%">${x} мс</span>`);
+const r=document.getElementById('r').getBoundingClientRect();document.title=Math.ceil(r.width)+'x'+Math.ceil(r.height);
+</script></body></html>

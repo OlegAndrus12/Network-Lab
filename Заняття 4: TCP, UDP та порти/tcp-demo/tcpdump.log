@@ -1,0 +1,9 @@
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on lo0, link-type NULL (BSD loopback), snapshot length 524288 bytes
+tcpdump: listening on lo0, link-type NULL (BSD loopback), snapshot length 524288 bytes
+14 packets captured
+14 packets received by filter
+0 packets dropped by kernel
+14 packets captured
+14 packets received by filter
+0 packets dropped by kernel

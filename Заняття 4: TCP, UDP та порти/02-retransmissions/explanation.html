@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCP Retransmissions Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1f; --muted: #5d5d66; --card: #ffffff; --border: #e2e0da;
+  --code-bg: #f2f0ea; --accent: #2457c5; --warn-bg: #fff4dc; --warn-border: #e2b03c;
+  --note-bg: #e9f1ff; --note-border: #7aa2ec;
+  --dup: #9a6a00; --fast: #b3261e; --rto: #7a1fa2; --hole: #5d5d66; --ok: #1d7a3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17171a; --fg: #e8e6e1; --muted: #a3a1a9; --card: #202024; --border: #34343a;
+    --code-bg: #26262b; --accent: #8fb0ff; --warn-bg: #3a2f14; --warn-border: #a7832a;
+    --note-bg: #1c2840; --note-border: #4a6cb3;
+    --dup: #e8b64a; --fast: #ff8a80; --rto: #d39af0; --hole: #a3a1a9; --ok: #6fd28e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17171a; --fg: #e8e6e1; --muted: #a3a1a9; --card: #202024; --border: #34343a;
+  --code-bg: #26262b; --accent: #8fb0ff; --warn-bg: #3a2f14; --warn-border: #a7832a;
+  --note-bg: #1c2840; --note-border: #4a6cb3;
+  --dup: #e8b64a; --fast: #ff8a80; --rto: #d39af0; --hole: #a3a1a9; --ok: #6fd28e;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; overflow-x: auto; margin: 8px 0 16px;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.box { border-left: 4px solid var(--note-border); background: var(--note-bg); padding: 10px 14px; border-radius: 6px; margin: 14px 0; }
+.box.warn { border-color: var(--warn-border); background: var(--warn-bg); }
+.box p { margin: 4px 0; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 0.93rem; }
+.tablewrap { overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+.dup { color: var(--dup); font-weight: 600; }
+.fast { color: var(--fast); font-weight: 600; }
+.rto { color: var(--rto); font-weight: 600; }
+.hole { color: var(--hole); font-style: italic; }
+.ok { color: var(--ok); font-weight: 600; }
+.ann { color: var(--muted); }
+nav ol { padding-left: 20px; margin: 0; }
+nav { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.tag { display: inline-block; font-size: 0.78rem; padding: 0 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
+svg text { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: var(--fg); }
+svg .m { fill: var(--muted); }
+svg .ln { stroke: var(--muted); stroke-width: 1.2; }
+svg .data { stroke: var(--accent); stroke-width: 1.6; }
+svg .lost { stroke: var(--fast); stroke-width: 1.6; stroke-dasharray: 4 3; }
+svg .ack { stroke: var(--dup); stroke-width: 1.4; }
+svg .re { stroke: var(--fast); stroke-width: 2.2; }
+svg .rt { stroke: var(--rto); stroke-width: 2.2; }
+.fig { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 10px 0 16px; }
+.fig svg { width: 100%; height: auto; display: block; }
+.figs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .figs { grid-template-columns: 1fr; } h1 { font-size: 1.4rem; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Demo 2: watching TCP retransmissions in Wireshark</h1>
+<p class="sub">Lecture topic 4 (TCP, UDP та порти). Supports the slide <strong>«Два способи помітити втрату»</strong> and <strong>exercise 3</strong>.
+Folder: <code>ports/02-retransmissions/</code>, port 9102, Docker names <code>demo02-*</code>.</p>
+
+<nav><ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mech">The mechanism</a></li>
+<li><a href="#run">Running it live</a></li>
+<li><a href="#see">What students will see (real output)</a></li>
+<li><a href="#ask">Things to point out and ask</a></li>
+<li><a href="#gotchas">Gotchas and recovery</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+</ol></nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>A Linux container adds <strong>5% random packet loss</strong> (and 5 ms delay each way) to its loopback interface with <code>tc netem</code>.
+<code>curl</code> downloads a 2 MB file from <code>python3 -m http.server 9102</code> while <code>tcpdump</code> records a <code>.pcap</code>.
+You open the pcap in Wireshark on the Mac, and Wireshark itself labels and colours the loss-recovery events:</p>
+<ul>
+<li><span class="hole">TCP Previous segment not captured</span>: a hole in the sequence numbers (a segment was lost).</li>
+<li><span class="dup">TCP Dup ACK #1/#2/#3…</span>: the receiver keeps repeating the same <code>ack</code> number.</li>
+<li><span class="fast">TCP Fast Retransmission</span>: loss detection method 1, the sender reacts to duplicate ACKs.</li>
+<li><span class="rto">TCP Retransmission</span> after a pause of about 0.2 s or more: loss detection method 2, the retransmission timer (RTO) fired.</li>
+</ul>
+<p>Those are exactly the two ways of noticing a loss on the slide: <em>duplicate ACKs</em> (fast, about 1 RTT) and <em>timeout</em> (slow, at least 200 ms on Linux).
+<strong>Analyze → Expert Information</strong> counts all of them. The kernel's own counters (<code>nstat</code>) are printed alongside, so you can check Wireshark's labels against what TCP actually did.</p>
+
+<div class="tablewrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>run_demo.sh</code></td><td>One command. Builds the image once, runs everything in container <code>demo02-retrans</code>, writes <code>capture.pcap</code> here. Env: <code>LOSS</code>, <code>DELAY</code>, <code>MTU</code>, <code>SIZE_KB</code>, <code>SACK=0</code>, <code>PCAP</code>.</td></tr>
+<tr><td><code>inside.sh</code></td><td>The part that runs inside Linux: lo setup, netem, http.server, tcpdump, curl, nstat, then <code>analyze.py</code>.</td></tr>
+<tr><td><code>analyze.py</code></td><td>Counts the Wireshark labels using tshark and prints examples plus an Expert Information summary. Runs in the container or on the Mac (it uses <code>/Applications/Wireshark.app/Contents/MacOS/tshark</code>).</td></tr>
+<tr><td><code>Dockerfile</code></td><td><code>python:3.12-slim</code> plus iproute2, ethtool, tcpdump, tshark, procps, netcat, curl.</td></tr>
+<tr><td><code>sample_sack.pcap</code></td><td>Real sample with SACK (1959 frames: 34 fast retransmissions, 3 RTOs, 183 dup ACKs). This is your fallback.</td></tr>
+<tr><td><code>sample_nosack.pcap</code></td><td>Real sample with SACK disabled (2409 frames: 39 fast retransmissions, 10 RTOs, 367 dup ACKs).</td></tr>
+<tr><td><code>capture.pcap</code></td><td>Written by each <code>./run_demo.sh</code> run (overwritten every time; the samples are never touched).</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>Real captured output of every run described here, labelled by OS and tool version.</td></tr>
+</table></div>
+
+<h2 id="mech">2. The mechanism</h2>
+
+<h3>2.1 Where the loss happens and what tcpdump can see</h3>
+<p><code>tc qdisc add dev lo root netem delay 5ms loss 5%</code> installs a queueing discipline on the <em>egress</em> side of <code>lo</code>.
+On loopback every packet, in both directions, leaves through that egress, so <strong>data segments and ACKs are both dropped at 5%</strong>. Each direction gets 5 ms of delay, so RTT is about 12 ms (in the sample the SYN-ACK arrives 6.1 ms after the SYN).</p>
+<p>tcpdump taps the packet <em>after</em> the qdisc, just before it is handed to the receiving side. So a dropped packet <strong>never appears in the capture</strong>. The pcap shows the receiver's view: you never see a lost segment, only the hole it leaves behind
+(<span class="hole">Previous segment not captured</span>) and then the retransmission. Because of the delay, the timestamps are effectively arrival times: a retransmission appears about 6 ms after the dup ACK that triggered it.</p>
+
+<h3>2.2 Why MTU 1500 and the offload settings</h3>
+<p>Loopback's default MTU is 65536, so the MSS is 65483 bytes. A 2 MB file is then only about 32 data segments. With 5% loss that is one or two events in total
+(real run with <code>MTU=65536</code>: <strong>73 frames, 1 fast retransmission, 1 RTO</strong>). That is too sparse to teach from. With MTU 1500 the MSS is 1448 bytes (1460 minus 12 bytes of TCP timestamps), about 1450 data segments and dozens of events, the same as on a real Ethernet path.</p>
+<p>Two more settings in <code>inside.sh</code> make the loss behave like "5% of segments, independently":</p>
+<ul>
+<li><code>ethtool -K lo tso off gso off gro off</code>. Without this the kernel builds 64 KB "super-segments" and tcpdump records those instead of 1448-byte segments.</li>
+<li><code>ip link set lo gso_max_segs 1</code>. Even with the offloads off, Linux TCP still puts several MSS into one buffer (skb) and splits it in software <em>after</em> the qdisc. netem drops whole buffers, so losses came in bursts. In a test run before this fix one drop removed <strong>21 consecutive segments</strong>. With <code>gso_max_segs 1</code> the hole sizes in a real run were 65 single-segment holes and one two-segment hole.</li>
+</ul>
+<p>This is a nice aside if students ask why a "5% random" loss can wipe out a whole burst: the loss happens per buffer, not per packet.</p>
+
+<h3>2.3 Method 1: duplicate ACKs and fast retransmit</h3>
+<div class="figs">
+<div class="fig"><svg viewBox="0 0 320 250" role="img" aria-label="Fast retransmit timeline">
+<text x="40" y="16">sender</text><text x="236" y="16">receiver</text>
+<line class="ln" x1="60" y1="24" x2="60" y2="244"/><line class="ln" x1="260" y1="24" x2="260" y2="244"/>
+<line class="data" x1="60" y1="34" x2="260" y2="52"/><text x="110" y="36" class="m">seq 1</text>
+<line class="lost" x1="60" y1="54" x2="170" y2="64"/><text x="174" y="68" class="m">✕ seq 2 lost</text>
+<line class="data" x1="60" y1="74" x2="260" y2="92"/><text x="110" y="78" class="m">seq 3</text>
+<line class="data" x1="60" y1="94" x2="260" y2="112"/><text x="110" y="98" class="m">seq 4</text>
+<line class="data" x1="60" y1="114" x2="260" y2="132"/><text x="110" y="118" class="m">seq 5</text>
+<line class="ack" x1="260" y1="58" x2="60" y2="76"/>
+<line class="ack" x1="260" y1="96" x2="60" y2="114"/><text x="150" y="112" class="m">ack 2 #1</text>
+<line class="ack" x1="260" y1="116" x2="60" y2="134"/><text x="150" y="132" class="m">ack 2 #2</text>
+<line class="ack" x1="260" y1="136" x2="60" y2="154"/><text x="150" y="152" class="m">ack 2 #3</text>
+<line class="re" x1="60" y1="160" x2="260" y2="178"/><text x="70" y="182" style="fill:var(--fast)">fast retransmit seq 2</text>
+<line class="ack" x1="260" y1="184" x2="60" y2="202"/><text x="150" y="214" class="m">ack 6</text>
+<text x="66" y="238" class="m">about 1 RTT after the loss</text>
+</svg></div>
+<div class="fig"><svg viewBox="0 0 320 250" role="img" aria-label="RTO timeline">
+<text x="40" y="16">sender</text><text x="236" y="16">receiver</text>
+<line class="ln" x1="60" y1="24" x2="60" y2="244"/><line class="ln" x1="260" y1="24" x2="260" y2="244"/>
+<line class="data" x1="60" y1="34" x2="260" y2="52"/><text x="110" y="36" class="m">seq 9 (last)</text>
+<line class="lost" x1="60" y1="54" x2="170" y2="64"/><text x="174" y="68" class="m">✕ seq 10 lost</text>
+<text x="76" y="94" class="m">no more data,</text><text x="76" y="110" class="m">so no dup ACKs</text>
+<line class="ln" x1="52" y1="56" x2="52" y2="180" style="stroke:var(--rto);stroke-width:2"/>
+<text x="76" y="140" style="fill:var(--rto)">RTO timer ≥ 200 ms</text>
+<line class="rt" x1="60" y1="182" x2="260" y2="200"/><text x="70" y="204" style="fill:var(--rto)">retransmit seq 10</text>
+<text x="66" y="238" class="m">cwnd drops to 1 segment</text>
+</svg></div>
+</div>
+<p>TCP ACKs are cumulative: "I have everything up to byte N, send N next". When a segment is lost, each later segment that arrives makes the receiver send the <em>same</em> ack number again. Those are <span class="dup">duplicate ACKs</span>.
+Classic TCP (RFC 5681) treats the <strong>third</strong> duplicate ACK as proof of loss rather than reordering, retransmits the missing segment at once without waiting for a timer, and halves the congestion window. That is <span class="fast">fast retransmit</span>, which recovers in about one RTT.</p>
+<p><strong>Modern Linux is not literally "3 dup ACKs".</strong> With SACK it counts how much data the receiver reports beyond the hole (RFC 6675) and uses time-based RACK (RFC 8985). In the real captures you will see both cases:</p>
+<ul>
+<li>the retransmission comes <em>before</em> Dup ACK #3, because one SACK block already shows several segments received past the hole (live run, frame 112 after Dup ACK #2);</li>
+<li>Wireshark shows Dup ACK #4…#18 before the retransmission (<code>sample_nosack.pcap</code>, frames 187–216). The sender had decided earlier, but those duplicate ACKs were already in flight (half an RTT), and the retransmission needs another 6 ms to reach the capture point.</li>
+</ul>
+<p>For the slide, "3 duplicate ACKs" is the right rule to teach. Just don't promise students the retransmission will sit exactly after #3.</p>
+
+<h3>2.4 Method 2: the retransmission timeout (RTO)</h3>
+<p>Each sender keeps a timer for the oldest unacknowledged segment. RTO = SRTT + 4·RTTVAR (RFC 6298), clamped to a minimum. RFC 6298 recommends a 1 s minimum; <strong>Linux uses 200 ms</strong>. On a 12 ms RTT path the RTO is therefore essentially 200 ms plus a little.
+In every real run the RTO retransmissions came after a gap of <strong>0.21–0.29 s</strong> since the previous packet of the connection (more than 0.2 s when the RTO had already backed off). If the timer fires, the sender assumes the network is badly congested: cwnd goes to 1 segment, slow start begins again, and the RTO doubles on each repeat (exponential backoff).</p>
+<p>The timer is the fallback when duplicate ACKs cannot work:</p>
+<ul>
+<li>the <strong>retransmission itself is lost</strong> (the live run below: frame 169 is a fast retransmission of seq 140663, it is dropped too, and frame 170 resends it 220 ms later);</li>
+<li>a loss at the <strong>tail</strong> of a burst, with no later segments to produce dup ACKs (Linux first sends a Tail Loss Probe, counted as <code>TcpExtTCPLossProbes</code>; the RTO fires if that also fails);</li>
+<li><strong>all ACKs for a flight are lost</strong>. In <code>sample_sack.pcap</code>, frames 103–104 deliver seq 79847 and 81295, but both ACKs are dropped. Frame 105 is an RTO retransmission of seq 79847 at +0.244 s, and the next ACK (frame 106) carries a D-SACK for exactly 79847–81295. D-SACK means "I already had this": the data had arrived and the RTO was <em>spurious</em>, caused by lost ACKs. Wireshark shows this as the Warn "D-SACK Sequence". Frames 109–111 repeat the pattern, this time with a +0.288 s gap.</li>
+</ul>
+
+<div class="box"><p><strong>Wireshark's "TCP Retransmission" does not always mean RTO.</strong> Wireshark labels any re-sent sequence number that was not preceded by dup ACKs as "Retransmission", including TLP probes and RACK retransmissions. To find real timeouts, look for a ≥0.2 s gap:
+<code>tcp.analysis.retransmission &amp;&amp; !tcp.analysis.fast_retransmission &amp;&amp; tcp.time_delta &gt;= 0.2</code>.
+In the sample this matches <strong>3 frames, and the kernel counted <code>TcpExtTCPTimeouts 3</code></strong>. In the 5% test runs the two numbers agreed, apart from one run where a lost SYN was counted by the kernel. At 10% loss Wireshark found slightly fewer (14 vs 16, 12 vs 15), because an RTO retransmission that is itself dropped never reaches the capture.</p></div>
+
+<h3>2.5 What SACK changes</h3>
+<p>Both ends announce <code>SACK_PERM</code> in the SYN/SYN-ACK. After that, every duplicate ACK carries up to 3–4 <strong>SACK blocks</strong> (shown by Wireshark as <code>SLE=… SRE=…</code>): "I'm missing byte N, but I already have these ranges after it". The sender builds a scoreboard and can resend <em>every</em> hole in one RTT, sending only what is missing.
+Without SACK (NewReno) the sender learns about one hole per RTT, and a second loss in the same window often ends in a timeout.</p>
+<div class="tablewrap"><table>
+<tr><th>One real run each, 2 MB, 5% loss</th><th>SACK on (<code>sample_sack.pcap</code>)</th><th>SACK off (<code>sample_nosack.pcap</code>)</th></tr>
+<tr><td>Download time (no loss: 0.36 s)</td><td>5.4 s</td><td>6.7 s</td></tr>
+<tr><td>Kernel: RTO timeouts</td><td class="rto">3</td><td class="rto">12</td></tr>
+<tr><td>Kernel: recovery episodes</td><td>55 SACK</td><td>38 Reno</td></tr>
+<tr><td>Wireshark: Dup ACK frames</td><td>183</td><td>367</td></tr>
+<tr><td>Wireshark: ACKs with SACK blocks</td><td>223</td><td>0</td></tr>
+<tr><td>Wireshark: Fast Retransmission</td><td>34</td><td>39</td></tr>
+</table></div>
+<p>Loss is random, so treat this as one example rather than a benchmark. Across about a dozen SACK runs at 5% loss during testing, the timeouts ranged from 0 to 6. The no-SACK pcap is good for the classic textbook picture: long runs of plain dup ACKs without SLE/SRE, then one fast retransmission.</p>
+
+<h3>2.6 Why the counts don't match exactly</h3>
+<p>The kernel says <code>TcpRetransSegs 70</code>, while Wireshark labels 34 + 14 + 16 = 64 frames (fast + other + out-of-order, Wireshark 4.6.9). The difference is retransmissions that were <em>themselves</em> dropped by netem and so never captured.
+Wireshark's labels are heuristics computed from the trace, not flags inside the packets. A retransmission that arrives very soon after the hole is often labelled <em>Out-Of-Order</em>, and the split between "Retransmission" and "Out-Of-Order" differs between Wireshark versions: 4.4.19 in the container labels 7 and 23, while 4.6.9 on the Mac labels 14 and 16 for the same pcap. Dup ACK, Fast Retransmission and the ≥0.2 s RTO counts are the same in both versions.</p>
+
+<h2 id="run">3. Running it live</h2>
+
+<div class="box warn"><p><strong>Before class</strong> (needs internet, about 1–2 min): <code>cd ports/02-retransmissions &amp;&amp; ./run_demo.sh</code> once. This builds the image <code>demo02-retrans</code>. In class it then takes about 10 s and needs no network.
+Install Wireshark if needed: <code>brew install --cask wireshark</code> (it is already in <code>/Applications</code> on this Mac). Opening a pcap file needs no sudo.</p></div>
+
+<h3>Option A: one command (macOS or Linux, Docker only, no sudo)</h3>
+<pre><code>cd ports/02-retransmissions
+./run_demo.sh                      # 5% loss, 2 MB, SACK on   -> capture.pcap
+open -a Wireshark capture.pcap     # macOS   (Linux: wireshark capture.pcap &amp;)
+
+# variants
+LOSS=10% ./run_demo.sh             # many RTOs, guaranteed
+SACK=0 PCAP=nosack.pcap ./run_demo.sh
+MTU=65536 PCAP=bigmtu.pcap ./run_demo.sh   # show why we lowered the MTU</code></pre>
+<p>The container has its own network namespace, so <code>tc</code>, MTU and offload changes affect only the container's <code>lo</code> and disappear with it (<code>--rm</code>). The folder is mounted at <code>/demo</code>, so <code>capture.pcap</code> lands straight in the folder. No <code>docker cp</code> is needed.</p>
+
+<h3>Option B: step by step, in front of students (Docker)</h3>
+<pre><code># terminal 1: start a long-running container and break its loopback
+docker run -d --rm --name demo02-live --cap-add NET_ADMIN -v "$PWD":/demo demo02-retrans sleep infinity
+docker exec demo02-live bash -c '
+  ip link set lo mtu 1500
+  ethtool -K lo tso off gso off gro off
+  ip link set lo gso_max_segs 1
+  tc qdisc add dev lo root netem delay 5ms loss 5%
+  tc qdisc show dev lo
+  mkdir -p /srv &amp;&amp; head -c 2M /dev/urandom &gt; /srv/file.bin'
+docker exec -d demo02-live python3 -m http.server 9102 --bind 127.0.0.1 --directory /srv
+docker exec -d demo02-live tcpdump -i lo -n -U -w /demo/live.pcap 'tcp port 9102'
+
+# terminal 2: live "Wireshark labels" in the terminal, only the interesting frames
+docker exec -it demo02-live tshark -l -i lo -f 'tcp port 9102' \
+    -Y 'tcp.analysis.flags &amp;&amp; !tcp.analysis.window_update'
+
+# terminal 1: the download (watch the progress bar stall during RTOs)
+docker exec demo02-live curl -o /dev/null http://127.0.0.1:9102/file.bin
+docker exec demo02-live nstat -z TcpRetransSegs TcpExtTCPFastRetrans TcpExtTCPTimeouts
+
+# finish: stop the capture, open it, clean up
+docker exec demo02-live pkill tcpdump
+open -a Wireshark live.pcap
+docker rm -f demo02-live</code></pre>
+<p>This exact sequence was run while preparing the demo. Without the <code>-v</code> mount, use <code>docker cp demo02-live:/tmp/live.pcap .</code> instead.</p>
+
+<h3>Option C: a real Linux machine with sudo (not run here)</h3>
+<p>These are the same commands as <code>inside.sh</code>, but on the host's own <code>lo</code>. They were <strong>not tested on a bare Linux host</strong> (none was available). They change system-wide loopback behaviour, so undo them afterwards.</p>
+<pre><code>sudo ip link set lo mtu 1500
+sudo ethtool -K lo tso off gso off gro off
+sudo ip link set lo gso_max_segs 1
+sudo tc qdisc add dev lo root netem delay 5ms loss 5%
+mkdir -p /tmp/srv &amp;&amp; head -c 2M /dev/urandom &gt; /tmp/srv/file.bin
+python3 -m http.server 9102 --bind 127.0.0.1 --directory /tmp/srv &amp;
+sudo tcpdump -i lo -n -w capture.pcap 'tcp port 9102' &amp;
+curl -o /dev/null http://127.0.0.1:9102/file.bin
+sudo pkill tcpdump; kill %1
+# undo (IMPORTANT: everything on this machine that uses loopback is slow and lossy until you do)
+sudo tc qdisc del dev lo root
+sudo ip link set lo mtu 65536
+sudo ethtool -K lo tso on gso on gro on
+sudo ip link set lo gso_max_segs 65535</code></pre>
+
+<h3>What is different on macOS</h3>
+<ul>
+<li>There is no <code>tc</code>/netem. The macOS equivalent is dummynet (<code>dnctl</code> + <code>pfctl</code>) or Apple's Network Link Conditioner. Both need sudo, so they were <strong>not tested</strong>, which is why the demo uses Docker.</li>
+<li>Docker Desktop runs containers in a Linux VM (kernel 6.12.76-linuxkit here). The TCP you see is <strong>Linux TCP</strong>, not the macOS stack.</li>
+<li><code>netstat -s -p tcp</code> on this Mac printed only zeros without sudo (e.g. <code>0 data packet (0 byte) retransmitted</code>, <code>0 retransmit timeout</code>). Use <code>nstat</code> in the container for counters.</li>
+<li>The analysis runs on the Mac too: <code>python3 analyze.py sample_sack.pcap</code> uses the tshark in <code>Wireshark.app</code> (verified with 4.6.9).</li>
+</ul>
+
+<h3>In Wireshark</h3>
+<ul>
+<li>The coloring rule "Bad TCP" (black background, red text) highlights all of the events. Dup ACKs and retransmissions stand out immediately when you scroll.</li>
+<li><strong>Analyze → Expert Information</strong>: expand <em>Warnings</em> (Previous segment not captured, Out-Of-Order, D-SACK) and <em>Notes</em> (Duplicate ACK #n, fast retransmission, retransmission). Double-clicking an entry jumps to the packet.</li>
+<li>Useful column: right-click a field → <em>Apply as Column</em> on <code>tcp.time_delta</code> (enable <em>Protocol Preferences → TCP → Calculate conversation timestamps</em>) to make the 0.2 s RTO gaps visible.</li>
+<li>If the Info column says "Continuation", that is the HTTP dissector. <em>Analyze → Enabled Protocols → uncheck HTTP</em> shows Seq/Ack/Len instead (<code>analyze.py</code> does the same with <code>--disable-protocol http</code>).</li>
+<li>Optional: <em>Statistics → TCP Stream Graphs → tcptrace</em> on a server→client packet shows retransmissions and SACK ranges graphically. I did not check this view, since there is no GUI in this environment.</li>
+</ul>
+<div class="tablewrap"><table>
+<tr><th>Display filter</th><th>Shows</th><th>Sample count*</th></tr>
+<tr><td><code>tcp.analysis.flags</code></td><td>everything Wireshark flagged</td><td>n/a</td></tr>
+<tr><td><code>tcp.analysis.lost_segment</code></td><td>holes (Previous segment not captured)</td><td>60</td></tr>
+<tr><td><code>tcp.analysis.duplicate_ack</code></td><td>all dup ACKs</td><td>183</td></tr>
+<tr><td><code>tcp.analysis.duplicate_ack_num == 3</code></td><td>exactly the third dup ACK</td><td>39</td></tr>
+<tr><td><code>tcp.options.sack_le</code></td><td>ACKs with SACK blocks</td><td>223</td></tr>
+<tr><td><code>tcp.analysis.fast_retransmission</code></td><td class="fast">method 1</td><td>34</td></tr>
+<tr><td><code>tcp.analysis.retransmission &amp;&amp; !tcp.analysis.fast_retransmission</code></td><td>other retransmissions (RTO, TLP, RACK)</td><td>14</td></tr>
+<tr><td><code>… &amp;&amp; tcp.time_delta &gt;= 0.2</code></td><td class="rto">method 2, real RTOs</td><td>3</td></tr>
+<tr><td><code>tcp.analysis.out_of_order</code></td><td>quick retransmissions labelled Out-Of-Order</td><td>16</td></tr>
+<tr><td><code>frame.number &lt;= 27</code></td><td>the first loss episode in the sample</td><td>n/a</td></tr>
+</table></div>
+<p class="ann">* <code>sample_sack.pcap</code> in Wireshark 4.6.9 on macOS.</p>
+
+<h2 id="see">4. What students will see (real output)</h2>
+
+<h3>4.1 Terminal: <code>./run_demo.sh</code> (Docker, SACK on), kernel counters</h3>
+<pre><code>=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за 5.357760 с        <span class="ann">← with LOSS=0% the same download took 0.36 s</span>
+  tcpdump: 1959 packets captured
+  tcpdump: 0 packets dropped by kernel       <span class="ann">← the capture is complete</span>
+
+=== 3. Що порахувало саме ядро (nstat ...) ===
+  TcpExtTCPFastRetrans	66	<span class="fast">швидкі повтори</span>        <span class="ann">← method 1</span>
+  TcpExtTCPLossProbes	9	зонди втрати хвоста (TLP)
+  TcpExtTCPSackRecovery	55	епізоди відновлення з SACK
+  TcpExtTCPTimeouts	3	<span class="rto">спрацювань таймера RTO</span>  <span class="ann">← method 2</span>
+  TcpRetransSegs	70	усього повторно надісланих сегментів</code></pre>
+
+<h3>4.2 The first loss: dup ACKs carrying SACK, then fast retransmit (frames 1–27 of <code>sample_sack.pcap</code>)</h3>
+<pre><code>  6 0.0210  9102 → 52956 Seq=1 Len=206                  <span class="ann">← HTTP response header</span>
+  <span class="hole">7 0.0210  [TCP Previous segment not captured] Seq=1655</span>   <span class="ann">← bytes 207–1654 were dropped</span>
+ <span class="hole">12 0.0210  [TCP Previous segment not captured] Seq=10343</span>  <span class="ann">← a second hole: 8895–10342</span>
+ 14 0.0270  [ACK] Ack=207                              <span class="ann">← "send byte 207 next"</span>
+ 15 0.0270  <span class="dup">[TCP Dup ACK 14#1]</span> Ack=207 SLE=1655 SRE=3103    <span class="ann">← "still need 207, but I have 1655–3102"</span>
+ 16 0.0270  <span class="dup">[TCP Dup ACK 14#2]</span> Ack=207 SLE=1655 SRE=4551
+ 17 0.0270  <span class="dup">[TCP Dup ACK 14#3]</span> Ack=207 SLE=1655 SRE=5999    <span class="ann">← the classic third duplicate</span>
+ ...
+ 20 0.0270  <span class="dup">[TCP Dup ACK 14#6]</span> Ack=207 SLE=10343 SRE=11791 SLE=1655 SRE=8895  <span class="ann">← 2 SACK blocks = 2 holes</span>
+ 21 0.0270  <span class="dup">[TCP Dup ACK 14#7]</span> Ack=207 SLE=10343 SRE=13239 SLE=1655 SRE=8895
+ 26 0.0329  <span class="fast">[TCP Fast Retransmission]</span> Seq=207 Len=1448  <span class="ann">← about 6 ms (half an RTT) after the dup ACKs</span>
+ 46 0.0570  <span class="fast">[TCP Fast Retransmission]</span> Seq=8895 Len=1448 <span class="ann">← the second hole, found via SACK</span></code></pre>
+<p>Point at frame 7: Wireshark already knows something is missing before any ACK says so, because the sequence numbers jump.</p>
+
+<h3>4.3 An RTO caused by lost ACKs: a 0.24 s silence, then a retransmission</h3>
+<pre><code> 102 0.1760  52956 → 9102 [ACK] Ack=79847
+ 103 0.1820  9102 → 52956 Seq=79847 Len=1448      <span class="ann">← both segments DID arrive…</span>
+ 104 0.1820  9102 → 52956 Seq=81295 Len=1448      <span class="ann">← …but their ACKs were dropped</span>
+ <span class="rto">105 0.4260  [TCP Retransmission] Seq=79847</span>       <span class="ann">← +0.244 s: the RTO fired</span>
+ 106 0.4319  [ACK] Ack=82743 SLE=79847 SRE=81295  <span class="ann">← D-SACK: "I already had that", a spurious RTO</span>
+ ...
+ 109 0.4499  [TCP Out-Of-Order] Seq=82743         <span class="ann">← a quick retransmission (Wireshark calls it Out-Of-Order)</span>
+ <span class="rto">110 0.7381  [TCP Retransmission] Seq=82743</span>       <span class="ann">← its ACK was lost too: +0.288 s, another RTO</span>
+ 111 0.7439  [ACK] Ack=85639 SLE=82743 SRE=84191  <span class="ann">← D-SACK again</span></code></pre>
+
+<h3>4.4 Live tshark (Option B), a lost retransmission forcing an RTO</h3>
+<pre><code> 97 0.0493  <span class="dup">[TCP Dup ACK 96#1]</span> Ack=52335 SLE=53783 SRE=56679
+ 98 0.0511  <span class="dup">[TCP Dup ACK 96#2]</span> Ack=52335 SLE=53783 SRE=100119
+112 0.0571  <span class="fast">[TCP Fast Retransmission]</span> Seq=52335   <span class="ann">← after only 2 dups: SACK showed ~32 segments past the hole</span>
+...
+151 0.0740  <span class="dup">[TCP Dup ACK 150#1]</span> Ack=140663
+152 0.0740  <span class="dup">[TCP Dup ACK 150#2]</span> Ack=140663
+169 0.0792  <span class="fast">[TCP Fast Retransmission]</span> Seq=140663  <span class="ann">← this one is dropped too…</span>
+170 0.2999  <span class="rto">[TCP Retransmission]</span>      Seq=140663  <span class="ann">← …so 220 ms later the timer resends it</span></code></pre>
+<p>Frames 169 and 170 put both methods on one slide.</p>
+
+<h3>4.5 Expert Information (sample_sack.pcap, Wireshark 4.6.9)</h3>
+<pre><code>Warns (79)
+          60   Sequence  TCP  Previous segment(s) not captured (common at capture start)
+          16   Sequence  TCP  This frame is a (suspected) out-of-order segment
+           3   Sequence  TCP  D-SACK Sequence
+Notes (266)
+          56   Sequence  TCP  Duplicate ACK (#1)
+          52   Sequence  TCP  Duplicate ACK (#2)
+          39   Sequence  TCP  Duplicate ACK (#3)
+          34   Sequence  TCP  This frame is a (suspected) fast retransmission
+          48   Sequence  TCP  This frame is a (suspected) retransmission   <span class="ann">← includes the 34 fast ones</span>
+           1   Sequence  TCP  Ambiguous ACK following Karn's definition
+          36   Sequence  TCP  Duplicate ACK (#4 і далі, разом)            <span class="ann">← analyze.py sums #4…#n</span></code></pre>
+<p>The full Expert dialog lists each <code>Duplicate ACK (#n)</code> separately. <code>analyze.py</code> sums #4 and above into one line. The "Ambiguous ACK" line appears only in Wireshark 4.6.</p>
+
+<h2 id="ask">5. Things to point out and ask students</h2>
+<ul>
+<li><strong>"Who notices the loss first, the sender or the receiver?"</strong> The receiver, from the sequence gap. But only the sender can fix it, and it learns about the loss through ACKs.</li>
+<li><strong>"Why wait for 3 duplicate ACKs, not 1?"</strong> Packets can be reordered. One or two duplicates may just mean "a bit late". Three is the classic threshold that trades speed against false alarms.</li>
+<li><strong>"Why is fast retransmit 'fast'?"</strong> Compare the gaps: about 6–12 ms (one RTT) against at least 200 ms for the RTO. Ask them to find a gap in <code>tcp.time_delta</code>.</li>
+<li><strong>"When can't dup ACKs help?"</strong> The last segment is lost, the retransmission is lost (live run, frame 169→170), or all ACKs are lost (sample, frame 105). Then only the timer is left.</li>
+<li><strong>"What does SLE/SRE tell the sender that Ack alone can't?"</strong> Which ranges after the hole arrived, so more than one hole can be repaired per RTT. Compare RTO counts with and without SACK.</li>
+<li><strong>"5% loss, so why did the download become about 15× slower (0.36 s → 5.4 s)?"</strong> Every loss halves cwnd and every RTO resets it to 1 segment. Loss tells TCP to slow down (congestion control), and that costs far more than the bytes resent.</li>
+<li><strong>"Is every 'TCP Retransmission' a timeout?"</strong> No: Wireshark guesses. Check with the time gap and the kernel counter.</li>
+<li><strong>Exercise 3:</strong> give students <code>sample_sack.pcap</code> and ask for the counts of dup ACKs, fast retransmissions and RTOs using the filters in section 3. The expected answers are in the filter table above (Wireshark 4.6.9).</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do if it misbehaves live</h2>
+<div class="tablewrap"><table>
+<tr><th>Symptom</th><th>Cause / fix</th></tr>
+<tr><td><code>docker build</code> is slow or fails in class</td><td>It needs the internet. Build before class (see the box above). <code>docker image ls demo02-retrans</code> confirms the image is there.</td></tr>
+<tr><td>"RTO цього разу не спрацював"</td><td>Loss is random, and a SACK run sometimes has 0 timeouts. Rerun, or use <code>LOSS=10% ./run_demo.sh</code> (3 test runs gave 2–16 RTOs).</td></tr>
+<tr><td>The download sits for about 1 s before anything happens</td><td>The SYN or SYN-ACK was lost. The initial SYN timeout is 1 s. This is a third kind of RTO and worth pointing out.</td></tr>
+<tr><td>"УВАГА: tcpdump пропустив пакети"</td><td>The pcap is incomplete and the counts will look wrong. Rerun. The script uses a 32 MB buffer, and all test runs after that change reported 0 dropped.</td></tr>
+<tr><td>Wireshark counts differ from <code>expected_output.txt</code></td><td>Each run is random, and labels change between Wireshark versions (Out-Of-Order vs Retransmission). Teach from the categories, not the exact numbers.</td></tr>
+<tr><td>Losses come in bursts, or there are very few huge segments</td><td>The <code>ethtool</code>/<code>gso_max_segs</code> step failed (the script prints a note), or <code>MTU=65536</code> was set. Check <code>ip -d link show lo</code> in the container.</td></tr>
+<tr><td><code>Error ... container name "demo02-retrans" already in use</code></td><td><code>run_demo.sh</code> removes it automatically. For Option B run <code>docker rm -f demo02-live</code>.</td></tr>
+<tr><td>Operation not permitted on <code>tc</code>/<code>ip link</code></td><td><code>--cap-add NET_ADMIN</code> is missing from <code>docker run</code>.</td></tr>
+<tr><td>Info column says "Continuation"</td><td>That is the HTTP dissector. Disable HTTP under Analyze → Enabled Protocols.</td></tr>
+<tr><td>The fallback pcap got overwritten</td><td>It can't be: <code>run_demo.sh</code> writes <code>capture.pcap</code>, and the samples are <code>sample_*.pcap</code>. Don't pass <code>PCAP=sample_sack.pcap</code>.</td></tr>
+<tr><td>Port 9102 clashes</td><td>It only exists inside the container's namespace, so it cannot clash with the Mac or other demos. <code>PORT=…</code> changes it anyway.</td></tr>
+</table></div>
+
+<h2 id="fallback">7. One-minute fallback</h2>
+<ol>
+<li><code>open -a Wireshark ports/02-retransmissions/sample_sack.pcap</code> (the committed real capture, no Docker needed).</li>
+<li>Filter <code>frame.number &lt;= 27</code> to show the hole, Dup ACK #1…#7 with growing SACK blocks, and the fast retransmission (section 4.2).</li>
+<li>Filter <code>frame.number &gt;= 102 &amp;&amp; frame.number &lt;= 111</code> to show two RTOs at +0.244 s and +0.288 s, each followed by a D-SACK (section 4.3). All 3 RTOs: <code>tcp.analysis.retransmission &amp;&amp; !tcp.analysis.fast_retransmission &amp;&amp; tcp.time_delta &gt;= 0.2</code> (enable conversation timestamps).</li>
+<li>Analyze → Expert Information for the totals.</li>
+<li>No Wireshark at all: show <code>expected_output.txt</code> section A (terminal output) and E (live tshark, frames 169→170).</li>
+</ol>
+
+</main>
+</body>
+</html>

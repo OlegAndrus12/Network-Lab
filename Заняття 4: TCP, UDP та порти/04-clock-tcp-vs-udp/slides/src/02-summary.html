@@ -1,0 +1,27 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>./run_demo.sh — підсумок того ж запуску</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.45 Menlo,"SF Mono",monospace;display:inline-block;min-width:100%}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9a9a9a;font-size:14px}
+.d{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:14px}
+pre{margin:0;padding:20px 24px 24px;font:inherit;white-space:pre}
+.p{color:#6a9955}.cmd{color:#ffffff;font-weight:bold}
+.udp{color:#e2b155}.tcp{color:#4fc1ff}
+.freeze{color:#ff6b6b;font-weight:bold}.burst{color:#ff6b6b}
+.skip{color:#e2b155;font-weight:bold}
+.ok{color:#89d185}.hl{color:#ffffff;font-weight:bold}
+.note{color:#8a8f98;font-style:italic}.cut{color:#6b6b6b}
+.lost{color:#ff6b6b;font-weight:bold}.retx{color:#ff6b6b;font-weight:bold}.dup{color:#e2b155;font-weight:bold}
+ body{width:880px}</style></head><body><div class="win">
+<div class="bar"><span class="d" style="background:#ff5f57"></span><span class="d" style="background:#febc2e"></span><span class="d" style="background:#28c840"></span><span class="t">./run_demo.sh — підсумок того ж запуску</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="cut">…</span>
+─────────────────────────────────────────┴─────────────────────────────────────────
+Підсумок (150 тіків по 100 мс):
+<span class="udp">UDP:</span> отримано 132 з 150, <span class="skip">втрачено 18 (12%)</span>   <span class="note">← дірки, але без зупинок</span>
+     лаг: <span class="hl">медіана 51 мс</span>, <span class="ok">макс 69 мс</span>
+     найдовша дірка: 3 тіки; <span class="ok">годинник НЕ зупинявся</span>
+<span class="tcp">TCP:</span> отримано 150 з 150, <span class="freeze">втрачено 0</span> (TCP перепосилає)   <span class="note">← медіана та сама, хвіст — ні</span>
+     лаг: <span class="hl">медіана 51 мс</span>, <span class="freeze">макс 857 мс</span>
+     <span class="freeze">зупинок (замерзань): 14</span>, <span class="freeze">найдовша 906 мс</span>; пачок: 16</pre></div></body></html>

@@ -1,0 +1,9 @@
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on lo, link-type EN10MB (Ethernet), snapshot length 128 bytes
+tcpdump: listening on lo, link-type EN10MB (Ethernet), snapshot length 128 bytes
+300 packets captured
+600 packets received by filter
+0 packets dropped by kernel
+300 packets captured
+600 packets received by filter
+0 packets dropped by kernel

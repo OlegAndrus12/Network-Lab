@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"><style>body{width:max-content}</style></head><body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">run_demo.sh — сценарії 4 і 4б (macOS)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="cut">…</span>
+<span class="hdr">4. Виправлення: префікс довжини (4 байти) перед кожним повідомленням</span>
+--- відправник: python3 sender.py framed --port 9116
+send(): <span class="k">104 байтів (4 байти довжини + 100)</span>  (початки: &lt;MSG-1; кінці: END-1&gt;)
+<span class="cut">…</span>
+--- приймач: python3 receiver.py framed --port 9116 --delay 0.5
+<span class="cut">…</span>
+  recv #1:    <span class="bad">312 байтів</span> (сирі байти потоку)    <span class="m">← те саме злиття, що й у сценарії 2</span>
+      -&gt; <span class="ok">повідомлення 1: 100 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-1&gt;'
+      -&gt; <span class="ok">повідомлення 2: 100 байтів</span>  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+      -&gt; <span class="ok">повідомлення 3: 100 байтів</span>  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+Разом recv(): 1, байтів: 312
+<span class="ok">Після розбору кадрів: 3 повідомлення(нь), залишок у буфері: 0 байтів</span>
+
+<span class="hdr">4б. Префікс довжини + ще одне повідомлення на 1 МБ (розрізане на шматки)</span>
+<span class="cut">…</span>
+  recv #4:  <span class="w">48996 байтів</span> (сирі байти потоку)
+      <span class="w">(кадр ще неповний: є 48992 з 1000000 байтів — чекаємо наступний recv)</span>
+  recv #5: <span class="w">605168 байтів</span> (сирі байти потоку)
+      <span class="w">(кадр ще неповний: є 654160 з 1000000 байтів — чекаємо наступний recv)</span>
+  recv #6: <span class="w">345840 байтів</span> (сирі байти потоку)
+      -&gt; <span class="ok">повідомлення 4: 1000000 байтів</span>  b'&lt;MSG-4 -------' ... b'- END-4&gt;'
+Разом recv(): 6, байтів: 1000316
+<span class="ok">Після розбору кадрів: 4 повідомлення(нь), залишок у буфері: 0 байтів</span></pre></div></body></html>

@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css">
+<style>pre{font-size:14px} .win{flex:1 1 auto} body{width:max-content}</style></head><body>
+<div class="row">
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">UDP — сценарій 1 (macOS)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="hdr">1. UDP: 3 × sendto() підряд -> скільки recvfrom()?</span>
+--- відправник: python3 sender.py udp --port 9106
+sendto(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)
+sendto(): 100 байтів  (початки: &lt;MSG-2; кінці: END-2&gt;)
+sendto(): 100 байтів  (початки: &lt;MSG-3; кінці: END-3&gt;)
+<span class="cut">…</span>
+--- приймач: python3 receiver.py udp --port 9106
+<span class="cut">…</span>
+  recv #1:    <span class="k">100 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-1&gt;'
+  recv #2:    <span class="k">100 байтів</span>  b'&lt;MSG-2 -------' ... b'- END-2&gt;'
+  recv #3:    <span class="k">100 байтів</span>  b'&lt;MSG-3 -------' ... b'- END-3&gt;'
+<span class="ok">Разом recvfrom(): 3</span> — по одному на кожен sendto()
+<span class="m">← 3 відправки = 3 прийоми, межі цілі</span></pre></div>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">TCP — сценарій 2 (macOS)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="hdr">2. TCP: 3 × send() підряд -> скільки recv()? (злиття)</span>
+--- відправник: python3 sender.py tcp --port 9116
+send(): 100 байтів  (початки: &lt;MSG-1; кінці: END-1&gt;)
+send(): 100 байтів  (початки: &lt;MSG-2; кінці: END-2&gt;)
+send(): 100 байтів  (початки: &lt;MSG-3; кінці: END-3&gt;)
+<span class="cut">…</span>
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0.5
+<span class="cut">…</span>
+  recv #1:    <span class="bad">300 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-3&gt;'
+            початки: <span class="bad">&lt;MSG-1, &lt;MSG-2, &lt;MSG-3</span>; кінці: END-1&gt;, END-2&gt;, END-3&gt;
+<span class="bad">Разом recv(): 1, байтів: 300</span>
+<span class="m">← 3 відправки злилися в один шматок</span></pre></div>
+</div></body></html>

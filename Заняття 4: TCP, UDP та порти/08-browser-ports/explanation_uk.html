@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Порти браузера: демо 08</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --card: #ffffff; --border: #dedbd2;
+  --code-bg: #f2f0ea; --accent: #1f5fa8;
+  --warn-bg: #fff4dc; --warn-border: #d9a520;
+  --key-bg: #e8f0fb; --key-border: #2f6db5;
+  --ok-bg: #e8f4ec; --ok-border: #3c8b57;
+  --hl: #fde58a; --hl-fg: #1d1d1b; --ann: #8a4b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+    --code-bg: #26282c; --accent: #7fb2ee;
+    --warn-bg: #3a2f14; --warn-border: #b98a1c;
+    --key-bg: #1a2a40; --key-border: #5b95d8;
+    --ok-bg: #18301f; --ok-border: #4f9e69;
+    --hl: #6b5a12; --hl-fg: #fff6cc; --ann: #f0b45c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+  --code-bg: #26282c; --accent: #7fb2ee;
+  --warn-bg: #3a2f14; --warn-border: #b98a1c;
+  --key-bg: #1a2a40; --key-border: #5b95d8;
+  --ok-bg: #18301f; --ok-border: #4f9e69;
+  --hl: #6b5a12; --hl-fg: #fff6cc; --ann: #f0b45c;
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; max-width: 100%;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.a { color: var(--ann); }
+mark { background: var(--hl); color: var(--hl-fg); padding: 0 2px; border-radius: 3px; }
+.box { border-left: 4px solid var(--warn-border); background: var(--warn-bg); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+.box.key { border-left-color: var(--key-border); background: var(--key-bg); }
+.box.ok { border-left-color: var(--ok-border); background: var(--ok-bg); }
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+.label { font-weight: 700; }
+.tw { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0; }
+th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+nav ol { padding-left: 20px; margin: 8px 0; }
+li { margin: 3px 0; }
+.note { color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Демо 08: порти вашого браузера просто зараз</h1>
+<p class="sub">Тема 4. TCP, UDP та порти. Нотатки лектора, папка <code>08-browser-ports/</code>. Слайди: «Порт — номер процесу на хості», QUIC і 443/udp.</p>
+
+<nav><ol>
+  <li><a href="#run">Як запустити</a></li>
+  <li><a href="#output">Що означає вивід</a></li>
+  <li><a href="#emph">На чому наголосити</a></li>
+</ol></nav>
+
+<p>Ідея за 2–3 хвилини: студенти відкривають YouTube і дивляться сокети <em>власного</em> браузера. Видно багато TCP-з'єднань на віддалений порт <code>:443</code>, кожне зі своїм локальним ефемерним портом. У Chrome є ще й UDP-сокети на <code>:443</code>: це QUIC, транспорт під HTTP/3. І все це належить одному процесу.</p>
+
+<!-- ============================================================ -->
+<h2 id="run">1. Як запустити</h2>
+
+<h3>Що потрібно</h3>
+<ul>
+  <li><b>macOS або Linux</b> з <code>lsof</code> і <code>python3</code> (на macOS обидва є). Docker потрібен лише для <code>linux_check.sh</code>.</li>
+  <li><b>Браузер з активними вкладками.</b> За кілька секунд до запуску ввімкніть відео на YouTube у Chrome: простоюючі з'єднання закриваються за десятки секунд, і сокетів стане мало.</li>
+  <li><b>Docker-варіант потребує інтернету:</b> <code>linux_check.sh</code> завантажує образ <code>python:3.12-slim</code>, через <code>apt-get</code> ставить <code>lsof</code> та <code>iproute2</code> і відкриває з'єднання до <code>1.1.1.1:443</code>.</li>
+  <li>Рядки <code>lsof</code> довгі, тому зробіть термінал широким або зменште шрифт. Решта виводу вміщується у звичайне вікно.</li>
+  <li>Перед парою один раз запустіть <code>./run_demo.sh</code> саме на тому ноутбуці, що підключений до проєктора.</li>
+</ul>
+
+<h3>Одна команда (macOS / Linux)</h3>
+<pre><code>cd 08-browser-ports
+./run_demo.sh                  # IP анонімізовано: безпечно для проєктора
+ANON=0 ./run_demo.sh           # справжні віддалені IP
+LINES=25 ./run_demo.sh         # більше рядків lsof у кроці 2 (за замовчуванням 15)</code></pre>
+<p>Скрипт виконує чотири кроки:</p>
+<ol>
+  <li>Запускає команду зі слайда як є (<code>lsof -i -P -n | grep -iE 'chrome|safari'</code>), рахує знайдені рядки і для порівняння рахує їх ще раз з <code>+c 0</code>.</li>
+  <li>Показує виправлену команду: перші <code>LINES</code> рядків <code>lsof +c 0 -i -P -n</code>, відфільтровані за браузерами.</li>
+  <li>Підсумок <code>browser_ports.py</code> за процесами: TCP → :443, UDP → :443 (QUIC), TCP → :80, інші порти й діапазон локальних портів.</li>
+  <li>Діапазон ефемерних портів ядра (<code>sysctl</code> на macOS, <code>/proc/sys/net/ipv4/ip_local_port_range</code> на Linux).</li>
+</ol>
+
+<h3>Вручну, по кроках (наочніше для студентів)</h3>
+<pre><code># macOS: усі сокети браузера (+c 0 обов'язковий!)
+lsof +c 0 -i -P -n | grep -iE 'chrom|safari|webkit|firefox|brave|edge|browser' | head -20
+
+# лише QUIC: UDP на :443
+lsof +c 0 -i -P -n | grep -iE 'chrom|webkit|firefox|brave|edge|browser' | grep UDP | grep ':443'
+
+# діапазон ефемерних портів
+sysctl net.inet.ip.portrange.first net.inet.ip.portrange.last
+
+# скільки байтів пройшло через кожен UDP-сокет :443 (стовпці rxbytes / txbytes / pid)
+netstat -anv -p udp | grep '\.443 '</code></pre>
+<pre><code># Linux
+ss -tunp | grep ':443'               # t=TCP u=UDP n=числа p=процес
+cat /proc/sys/net/ipv4/ip_local_port_range</code></pre>
+<p>Ключі <code>lsof</code>: <code>-i</code> мережеві сокети, <code>-P</code> порти числами (<code>443</code>, а не <code>https</code>), <code>-n</code> без зворотного DNS (значно швидше), <code>+c 0</code> повна назва процесу.</p>
+
+<h3>Скрипт-підсумок <code>browser_ports.py</code></h3>
+<div class="tw"><table>
+<tr><th>Прапорець</th><th>Що робить</th></tr>
+<tr><td><code>--anonymize</code></td><td>замінює віддалені IP на документаційні <code>203.0.113.x</code> / <code>2001:db8::x</code> (та сама адреса отримує той самий замінник)</td></tr>
+<tr><td><code>--lines N</code></td><td>спочатку друкує перші N відфільтрованих рядків <code>lsof</code></td></tr>
+<tr><td><code>--all</code></td><td>усі процеси, а не лише браузери</td></tr>
+<tr><td><code>--pattern RE</code></td><td>свій регулярний вираз для назви процесу</td></tr>
+<tr><td><code>--file шлях</code> / <code>--file -</code></td><td>читає вже збережений вивід <code>lsof</code> з файлу або stdin, нічого не запускаючи</td></tr>
+</table></div>
+<pre><code>python3 browser_ports.py --anonymize --lines 15
+lsof +c 0 -i -P -n | python3 browser_ports.py --file -
+python3 browser_ports.py --all</code></pre>
+
+<h3>Linux у Docker (для порівняння діапазонів)</h3>
+<pre><code>./linux_check.sh</code></pre>
+<p>Запускає контейнер <code>demo08-linux</code>. Браузера в ньому немає, тому <code>python3</code> відкриває один TCP- і один UDP-сокет на <code>1.1.1.1:443</code>, а скрипт друкує <code>ip_local_port_range</code>, <code>lsof</code>, <code>ss -tunp</code> і <code>browser_ports.py --all</code>.</p>
+
+<h3>Windows (не перевірено)</h3>
+<pre><code>netstat -ano | findstr :443
+tasklist /FI "PID eq 1234"
+netsh int ipv4 show dynamicport tcp</code></pre>
+<p>У Windows UDP-ендпоінти не показують віддалену адресу, тож QUIC за «віддаленим портом 443» там не знайти. Простіше подивитися в браузері: DevTools → Network → правий клік по заголовку → увімкнути стовпець <b>Protocol</b>. <code>h3</code> означає HTTP/3 через QUIC, <code>h2</code> означає HTTP/2 через TCP.</p>
+
+<h3>Якщо щось пішло не так</h3>
+<div class="tw"><table>
+<tr><th>Симптом</th><th>Причина і що робити</th></tr>
+<tr><td><code>grep chrome</code> нічого не знаходить (macOS)</td><td><code>lsof</code> обрізає COMMAND до 9 символів. Додайте <code>+c 0</code> або запустіть <code>./run_demo.sh</code>.</td></tr>
+<tr><td>Жодного UDP :443</td><td>Wi-Fi університету або VPN блокує UDP/443, або браузер ще не перейшов на QUIC. Пограйте відео 10–20 с і запустіть ще раз. Якщо UDP так і не з'явився, це теж добрий привід поговорити про запасний варіант (fallback) на TCP.</td></tr>
+<tr><td>Мало сокетів</td><td>Простоюючі з'єднання закрилися. Запускайте одразу після старту відео.</td></tr>
+<tr><td>Safari нічого не показує</td><td>Його сокети належать процесу <code>com.apple.WebKit.Networking</code>. Шаблон у скриптах уже містить <code>webkit</code>.</td></tr>
+<tr><td>Браузер студента не знайдено</td><td>Подивіться справжні назви процесів: <code>lsof +c 0 -i -P -n | awk '{print $1}' | sort | uniq -c</code>.</td></tr>
+<tr><td>Linux: <code>lsof: command not found</code></td><td>Використайте <code>ss -tunp</code> або <code>sudo apt install lsof</code>.</td></tr>
+<tr><td><code>linux_check.sh</code> падає</td><td>Немає Docker або інтернету. Пропустіть його: діапазон Linux є в розділі C файлу <code>expected_output.txt</code>.</td></tr>
+</table></div>
+
+<div class="box ok">
+<p><span class="label">Запасний варіант (1 хвилина).</span> Якщо мережа чи ноутбук підводять, відкрийте <code>expected_output.txt</code> і пройдіться по ньому:</p>
+<ol>
+  <li>розділ A, крок 1: без <code>+c 0</code> знайдено 0 рядків, з <code>+c 0</code> 21;</li>
+  <li>крок 2: один рядок <code>UDP ...-&gt;:443</code> (QUIC) і чотири TCP-рядки до того самого сервера з різними локальними портами;</li>
+  <li>крок 3: 5 TCP :443 і 3 UDP :443, усі 12 локальних портів у межах 49152–65535;</li>
+  <li>розділ B: 3 400 838 байтів отримано через один UDP-сокет :443;</li>
+  <li>розділ C: діапазон Linux 32768–60999.</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="output">2. Що означає вивід</h2>
+<div class="box">
+<p><span class="label">Адреси анонімізовано.</span> Нижче наведено реальний запис від 22.10.2026 (macOS 15, Chrome 155). Віддалені IP замінено на документаційні <code>203.0.113.x</code> (RFC 5737), локальну адресу LAN на <code>192.168.0.x</code>, ім'я користувача на <code>&lt;user&gt;</code>. Порти, PID, назви процесів, кількість сокетів і байтів справжні. Якщо студент спробує «пробити» ці IP: це не справжні сервери.</p>
+</div>
+<p class="note">У ваших запусках усі числа будуть іншими: кількість сокетів, номери портів, PID. Під час запису YouTube <em>не</em> відкривали, тому на парі сокетів буде більше. Незмінною лишиться структура: сервер завжди на <code>:443</code>, а локальні порти завжди в діапазоні ОС.</p>
+
+<h3>Крок 1: команда зі слайда на macOS нічого не знаходить</h3>
+<pre><code>=== 1. lsof -i -P -n | grep -iE 'chrome|safari'  (команда без +c 0) ===
+знайдено рядків: 0                 <span class="a">← COMMAND обрізано до «Google», «chrome» у ньому немає</span>
+з +c 0 (повна назва процесу): 21</code></pre>
+<p>На macOS <code>lsof</code> показує лише перші 9 символів назви процесу, а пробіли кодує як <code>\x20</code>. Тому <code>Google Chrome Helper</code> перетворюється на <code>Google</code>, а Safari на <code>com.apple</code>. Ключ <code>+c 0</code> вмикає повну назву.</p>
+
+<h3>Крок 2: виправлена команда (фрагмент)</h3>
+<pre><code>COMMAND                                  PID  USER    ... NODE NAME
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... UDP 192.168.0.x:52189-&gt;203.0.113.1:443               <span class="a">← QUIC: UDP на 443, стану немає</span>
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... TCP 192.168.0.x:58173-&gt;203.0.113.2:5228 (ESTABLISHED) <span class="a">← push-канал Google (FCM)</span>
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... TCP 192.168.0.x:57765-&gt;<mark>203.0.113.3:443</mark> (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... TCP 192.168.0.x:<mark>52910</mark>-&gt;<mark>203.0.113.3:443</mark> (ESTABLISHED) <span class="a">← той самий сервер і :443,</span>
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... TCP 192.168.0.x:<mark>63385</mark>-&gt;<mark>203.0.113.3:443</mark> (ESTABLISHED) <span class="a">  але різні локальні порти</span>
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... TCP 192.168.0.x:<mark>54477</mark>-&gt;<mark>203.0.113.3:443</mark> (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  &lt;user&gt;  ... UDP *:5353                                     <span class="a">← mDNS: пошук Chromecast тощо в LAN</span></code></pre>
+<div class="tw"><table>
+<tr><th>Поле</th><th>Значення</th></tr>
+<tr><td><code>COMMAND</code></td><td>Процес, якому належить сокет. У Chromium мережею займається окремий процес (network service), а не вікно браузера. На цьому Mac це <code>Google Chrome Helper (Aperitif)</code>.</td></tr>
+<tr><td><code>PID</code></td><td>Номер процесу. Усі ці сокети мають PID 745, тобто належать одному процесу.</td></tr>
+<tr><td><code>USER</code></td><td>Логін власника. Анонімізація скрипта його <b>не</b> приховує (див. «Увага» нижче).</td></tr>
+<tr><td><code>NODE</code></td><td>Протокол транспортного рівня: <code>TCP</code> або <code>UDP</code>.</td></tr>
+<tr><td><code>NAME</code></td><td><code>локальна_адреса:порт-&gt;віддалена_адреса:порт</code>. Ліворуч від стрілки ваша машина з <b>ефемерним</b> портом, який ядро вибрало під час <code>connect()</code>. Праворуч сервер із «відомим» портом <code>443</code>.</td></tr>
+<tr><td><code>(ESTABLISHED)</code></td><td>Стан TCP-з'єднання в ядрі: рукостискання завершено. UDP-рядки стану не мають, бо в UDP немає з'єднання.</td></tr>
+<tr><td><code>*:5353</code></td><td>Сокет, що слухає на всіх адресах. Віддаленої адреси немає, бо це не з'єднання, а очікування пакетів.</td></tr>
+</table></div>
+<p><b>Механізм.</b> IP-адреса доставляє пакет до хоста. Порт доставляє його до сокета, а сокет належить процесу. Ядро знаходить сокет за п'ятіркою (протокол, локальний IP, локальний порт, віддалений IP, віддалений порт). Тому чотири з'єднання до <code>203.0.113.3:443</code> не плутаються: у кожного свій локальний порт.</p>
+<p><b>UDP «зі стрілкою»</b> (<code>UDP ...:52189-&gt;...:443</code>) означає під'єднаний (connected) UDP-сокет. Браузер викликав <code>connect()</code> на UDP-сокеті, і ядро лише запам'ятало адресу співрозмовника, жодного пакета при цьому не надіслано. Стан з'єднання QUIC живе всередині браузера, а не в ядрі.</p>
+
+<h3>Крок 3: підсумок за процесами</h3>
+<pre><code>Google Chrome Helper (Aperitif)  (PID 745, Chrome/Chromium): усього 18 сокетів
+  TCP → :443  (HTTPS, HTTP/1.1 або HTTP/2): 5         <span class="a">← класичний HTTPS поверх TCP</span>
+  UDP → :443  (QUIC = HTTP/3):              3         <span class="a">← HTTP/3 поверх QUIC поверх UDP</span>
+  TCP → :80   (HTTP без шифрування):        0
+  TCP → :5228 (Google push (FCM)): 1
+  UDP слухає :5353 (mDNS, пошук пристроїв у LAN): 9
+  Локальні (ефемерні) порти: 52189–63385  (9 шт.)    <span class="a">← 5 TCP + 3 UDP + 1 FCM</span>
+
+Google Chrome Helper  (PID 46391, Chrome/Chromium): усього 3 сокетів
+  ...
+  Локальні (ефемерні) порти: 58264–58614  (3 шт.)
+
+=== Ефемерні порти ===
+Браузер зараз використовує локальні порти 52189–63385
+Діапазон ОС (macOS sysctl net.inet.ip.portrange.first/last): 49152–65535  (16384 портів)
+У діапазоні ОС: 12 з 12                               <span class="a">← усі вибрані ядром із цього діапазону</span></code></pre>
+<p>Другий процес (PID 46391) був окремим екземпляром Chrome під керуванням Playwright (інструмента автоматизації). На парі зазвичай буде один мережевий процес на браузер.</p>
+
+<h3>Крок 4: діапазон ефемерних портів ядра</h3>
+<pre><code>net.inet.ip.portrange.first: 49152
+net.inet.ip.portrange.last: 65535</code></pre>
+
+<h3>Розділ B: через QUIC-сокет справді йдуть дані (macOS, <code>netstat -anv -p udp</code>)</h3>
+<pre><code>Proto  Local                Foreign          rxbytes  txbytes  pid
+udp4   192.168.0.x.58109    203.0.113.x.443  3400838  157763   745    <span class="a">← 3,4 МБ отримано через ОДИН UDP-сокет</span>
+udp4   192.168.0.x.61651    203.0.113.x.443  1469842  1141007  9126   <span class="a">← Claude Helper: застосунок на Electron, теж Chromium</span></code></pre>
+<p><code>rxbytes</code> і <code>txbytes</code> означають байти, отримані й надіслані через сокет. 3 400 838 байтів через UDP :443 не можуть бути DNS: це потік HTTP/3. Стовпці у файлі скорочено. Зверніть увагу, що <code>netstat</code> на macOS відділяє порт крапкою (<code>.443</code>), а не двокрапкою.</p>
+
+<h3>Розділ C: Linux у Docker</h3>
+<pre><code>=== cat /proc/sys/net/ipv4/ip_local_port_range ===
+32768	60999                                           <span class="a">← на Linux діапазон інший</span>
+
+=== ss -tunp ===
+Netid State Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+udp   ESTAB 0      0         172.17.0.6:56215      1.1.1.1:443  users:(("python3",pid=354,fd=4))
+tcp   ESTAB 0      0         172.17.0.6:43386      1.1.1.1:443  users:(("python3",pid=354,fd=3))</code></pre>
+<p><code>1.1.1.1</code> є публічним DNS Cloudflare, а <code>172.17.0.6</code> є адресою контейнера, тож анонімізувати тут нічого. <code>Recv-Q</code>/<code>Send-Q</code> показують байти, що чекають у черзі прийому/відправлення (тут 0). Пастка: <code>ss</code> показує UDP як <code>ESTAB</code>, хоча з'єднання в UDP немає. Це лише означає, що на сокеті викликали <code>connect()</code> і адреса співрозмовника зафіксована. У скрипті TCP-сокет пройшов рукостискання, а UDP-сокет не надіслав жодного пакета.</p>
+
+<!-- ============================================================ -->
+<h2 id="emph">3. На чому наголосити</h2>
+
+<div class="box key">
+<p><span class="label">Момент «ага!».</span> «Той самий сервер, той самий порт 443, а з'єднань чотири. Як ядро знає, кому який пакет?» Відповідь у стовпці ліворуч від стрілки: локальні порти різні, і саме вони разом з адресами складають п'ятірку, за якою ядро знаходить сокет, а отже й процес.</p>
+</div>
+
+<h3>Ключові тези</h3>
+<ol>
+  <li><b>Порт ідентифікує сокет процесу на хості.</b> IP доводить пакет до машини, порт до процесу. Сервер завжди на <code>:443</code>, а клієнт отримує тимчасовий (ефемерний) порт.</li>
+  <li><b>Ефемерні порти видає ядро з діапазону ОС:</b> macOS 49152–65535 (перевірено), Linux 32768–60999 (перевірено в Docker), Windows 49152–65535 (за замовчуванням, тут не перевіряли), рекомендація IANA 49152–65535 (RFC 6335).</li>
+  <li><b>443/tcp і 443/udp — різні порти.</b> Номери портів окремі для кожного протоколу. IANA закріпила обидва за HTTPS, і 443/udp використовується для HTTP/3.</li>
+  <li><b>Чому QUIC працює поверх UDP.</b> TCP живе в ядрах ОС, а NAT і файрволи розбирають і переписують його заголовки, тож новий транспортний протокол вони б просто відкидали. UDP проходить майже скрізь, тому QUIC використовує його як тонкий конверт, а надійність, порядок, контроль перевантаження і контроль потоку реалізує сам, у браузері.</li>
+  <li><b>Переваги QUIC:</b> немає блокування на початку черги (head-of-line blocking) між потоками; рукостискання разом із TLS 1.3 займає 1 RTT замість 2 (а при поновленні 0-RTT); з'єднання переживає зміну IP завдяки connection ID; майже весь заголовок зашифровано, тому Wireshark бачить лише «UDP 443».</li>
+  <li><b>QUIC вмикається не одразу.</b> Перший візит зазвичай іде по TCP (HTTP/2). Сервер повідомляє <code>Alt-Svc: h3=":443"</code>, і браузер пробує QUIC. Якщо UDP/443 заблоковано, браузер мовчки лишається на TCP.</li>
+</ol>
+
+<h3>Запитання до аудиторії</h3>
+<div class="tw"><table>
+<tr><th>Запитання</th><th>Очікувана відповідь</th></tr>
+<tr><td>Який стовпець належить серверу, а який вам?</td><td>Ліворуч від <code>-&gt;</code> ви з ефемерним портом, праворуч сервер на 443.</td></tr>
+<tr><td>Чому один процес має стільки сокетів?</td><td>Різні джерела (сам сайт, CDN з відео, шрифти, аналітика) мають кожне своє з'єднання. HTTP/2 і HTTP/3 мультиплексують запити, тож це не «один сокет на запит».</td></tr>
+<tr><td>UDP на 443? Хіба 443 не HTTPS по TCP?</td><td>Порти окремі для кожного протоколу. 443/udp — це QUIC / HTTP/3.</td></tr>
+<tr><td>Чому в UDP-рядках немає <code>(ESTABLISHED)</code>?</td><td>Ядро не тримає стану з'єднання для UDP. Стан QUIC зберігається в браузері.</td></tr>
+<tr><td>Порівняйте свій діапазон із сусідом.</td><td>macOS/Windows починаються з 49152, Linux з 32768.</td></tr>
+<tr><td>У кого нуль UDP :443? Чому?</td><td>Файрвол чи VPN блокує UDP/443, або браузер не вибрав h3. Браузер тихо перейшов на TCP: саме тому QUIC проєктували із запасним варіантом.</td></tr>
+<tr><td>Що таке <code>:5353</code> і <code>:5228</code>?</td><td>mDNS (пошук пристроїв у LAN) і push-канал Google. Порти позначають сервіси, а не лише «веб».</td></tr>
+</table></div>
+<p>Швидкий експеримент: запустіть двічі з інтервалом 30 с. Ефемерні порти зміняться, бо з'єднання закриваються й відкриваються заново.</p>
+
+<h3>Які хибні уявлення виправляє демо</h3>
+<ul>
+  <li>«Порт 443 означає TCP». Насправді є і 443/udp.</li>
+  <li>«Порт належить програмі назавжди». Клієнтський порт тимчасовий і щоразу інший.</li>
+  <li>«На один порт сервера можна мати лише одне з'єднання». З'єднання розрізняються за п'ятіркою, а не лише за портом сервера.</li>
+  <li>«<code>ESTAB</code> у <code>ss</code> для UDP означає з'єднання». Це лише під'єднаний сокет, і рукостискання не було.</li>
+  <li>«Мережею займається вікно браузера». У Chromium це окремий процес network service, а в Safari <code>com.apple.WebKit.Networking</code>.</li>
+</ul>
+
+<div class="box">
+<p><span class="label">Увага: виправте слайд.</span> На macOS команда <code>lsof -i -P -n | grep -iE 'chrome|safari'</code> знаходить <b>0</b> рядків. Потрібна <code>lsof +c 0 -i -P -n | grep -iE '...'</code>. Перевірено на macOS 15, Chrome 155.</p>
+</div>
+<div class="box">
+<p><span class="label">Увага: приватність на проєкторі.</span> <code>run_demo.sh</code> за замовчуванням анонімізує <em>віддалені</em> IP, але стовпець <code>USER</code> показує ваш логін, а локальна адреса LAN лишається справжньою. Записаний <code>expected_output.txt</code> містить і логін, і адресу LAN: приберіть їх, перш ніж показувати файл. Сирі команди <code>lsof</code> показують справжні IP, тому краще пропускайте вивід через <code>python3 browser_ports.py --anonymize --lines 20</code>.</p>
+</div>
+<div class="box">
+<p><span class="label">Увага: що не перевірено.</span> Перевірено лише Chrome на macOS і Linux у Docker. Назви процесів інших браузерів (Edge, Brave, Arc, Firefox) і всі команди для Windows взято з документації, а не з тесту. Вкладки <code>chrome://net-internals</code> змінюються між версіями Chrome, тому перевірте їх на своїй версії заздалегідь.</p>
+</div>
+</main>
+</body>
+</html>

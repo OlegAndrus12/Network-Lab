@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reliable UDP Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1e1f22; --muted: #5d6068; --card: #ffffff; --line: #e2e0da;
+  --code-bg: #f2f0ea; --accent: #2457c5; --ok: #1f7a43; --warn: #a3520b; --bad: #b3261e;
+  --mark: #fff1b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+    --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+    --mark: #4a3f12;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+  --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+  --mark: #4a3f12;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font: 0.8rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 12px;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.note { color: var(--muted); font-size: 0.92rem; }
+.hl { background: var(--mark); border-radius: 3px; }
+.ann { color: var(--ok); }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.box.warn { border-left: 4px solid var(--warn); }
+.box.key { border-left: 4px solid var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0 12px; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+.tw { overflow-x: auto; }
+nav ol { padding-left: 20px; margin: 8px 0; }
+nav li { margin: 2px 0; }
+svg text { fill: var(--fg); font: 12px ui-monospace, Menlo, monospace; }
+svg .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Demo 9: reliability on top of UDP — building a tiny TCP by hand</h1>
+<p class="sub">Topic 4 (TCP, UDP and ports). Lecturer notes. Folder: <code>09-reliable-udp/</code>. Ports: 9109/udp, 9119/tcp. Docker names <code>demo09-*</code>. Every number below is real output from 23.10.2026 (macOS 15.7 host, Docker 29.3.1, Linux 6.12.76-linuxkit). The full logs are in <code>expected_output.txt</code>.</p>
+
+<nav class="box">
+<strong>Contents</strong>
+<ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mech">The mechanism</a></li>
+<li><a href="#run">Running it live</a></li>
+<li><a href="#see">What students will see (real output)</a></li>
+<li><a href="#ask">Things to point out or ask</a></li>
+<li><a href="#gotchas">Gotchas and recovery</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+</ol>
+</nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>We send <strong>100 messages of 100 bytes</strong> over a deliberately bad network: <code>tc netem</code> on the container's loopback adds 25 ms delay per direction (RTT ≈ 50 ms), 10% loss, 5% duplication and 25% reordering. The same transfer runs four times, each time with one more piece of TCP built by hand on top of UDP:</p>
+<div class="tw"><table>
+<tr><th>#</th><th>Scenario</th><th>What we add</th><th>Result (one real run)</th></tr>
+<tr><td>1</td><td><code>naive</code></td><td>nothing: 100 × <code>sendto()</code></td><td>97 datagrams arrive: 10 lost, 7 duplicated, 31 out of order. The sender has no idea.</td></tr>
+<tr><td>2</td><td><code>saw</code></td><td>sequence numbers + ACK + retransmit timer (stop-and-wait)</td><td>100/100 in order, but <strong>8.65 s</strong>: 24 retransmits</td></tr>
+<tr><td>3</td><td><code>window</code></td><td>+ sliding window of 16 packets, reorder buffer at the receiver</td><td>100/100 in order, <strong>1.67 s</strong>: about 5× faster</td></tr>
+<tr><td>4</td><td><code>tcp</code></td><td>nothing: the kernel does it all</td><td>100/100 in order, <strong>0.10 s</strong> (up to ~1.2 s if the SYN is lost)</td></tr>
+</table></div>
+<p><strong>Slides it supports:</strong> «UDP — відправив і забув» and the TCP slide's list (sequence numbers, ACKs, retransmission, ordering, flow control). It also answers "if UDP is unreliable, how do QUIC, DNS, games and video calls work?" They add exactly as much reliability as they need, in the application.</p>
+
+<h2 id="mech">2. The mechanism</h2>
+
+<h3>The packet format</h3>
+<p>Every datagram starts with a 5-byte header: 1 byte type (<code>DATA</code>=1, <code>ACK</code>=2, <code>FIN</code>=3) + a 4-byte sequence number (<code>struct "!BI"</code> in <code>common.py</code>). DATA carries the message <code>&lt;MSG-17 ----…---- END-17&gt;</code>. No length prefix is needed: UDP already keeps message boundaries (demo 06), so one datagram is one packet.</p>
+
+<h3>What raw UDP does under netem (scenario 1)</h3>
+<p>netem acts on every packet leaving <code>lo</code>. With <code>loss 10%</code> a packet just disappears. <code>duplicate 5%</code> puts a second copy on the wire. <code>reorder 25%</code> sends a quarter of packets <em>without</em> the 25 ms delay, so they overtake the previous ones. The naive sender spaces datagrams 10 ms apart, so a packet that skips the delay overtakes the previous 2. UDP does nothing about any of this. The kernel delivers whatever arrives, in arrival order, and <code>sendto()</code> returned success for all 100.</p>
+
+<h3>Stop-and-wait (scenario 2)</h3>
+<p>Send one DATA, then wait for the ACK with that number. If nothing comes within <strong>RTO = 200 ms</strong>, send it again. The receiver ACKs <em>every</em> DATA, <strong>including duplicates</strong>, because the duplicate usually means "my previous ACK was lost". It delivers a number to the application only once.</p>
+<svg viewBox="0 0 640 250" width="100%" role="img" aria-label="Stop-and-wait timeline: DATA 7 is lost, the timer fires after 200 ms, DATA 7 is retransmitted and acknowledged">
+  <text x="60" y="16">sender</text>
+  <text x="500" y="16">receiver</text>
+  <line x1="80" y1="24" x2="80" y2="244" stroke="currentColor" opacity=".6"/>
+  <line x1="520" y1="24" x2="520" y2="244" stroke="currentColor" opacity=".6"/>
+  <line x1="80" y1="34" x2="520" y2="54" stroke="currentColor"/>
+  <text x="250" y="38">DATA #6</text>
+  <line x1="520" y1="58" x2="80" y2="78" stroke="currentColor"/>
+  <text x="250" y="62">ACK #6</text>
+  <line x1="80" y1="86" x2="300" y2="96" stroke="currentColor"/>
+  <text x="140" y="84">DATA #7</text>
+  <text x="306" y="100" class="muted">✗ lost (netem)</text>
+  <line x1="66" y1="86" x2="66" y2="176" stroke="currentColor" opacity=".6"/>
+  <text x="10" y="134" class="muted">RTO</text>
+  <text x="10" y="150" class="muted">200 ms</text>
+  <line x1="80" y1="176" x2="520" y2="196" stroke="currentColor"/>
+  <text x="200" y="180">DATA #7 (retransmit)</text>
+  <line x1="520" y1="200" x2="80" y2="220" stroke="currentColor"/>
+  <text x="250" y="204">ACK #7</text>
+  <text x="90" y="240" class="muted">One packet in flight: at best 1 message per RTT (50 ms), and every loss costs a full RTO.</text>
+</svg>
+<p>The sender can't tell whether DATA or the ACK was lost. Both look the same: silence. A retransmit after a lost ACK shows up at the receiver as a duplicate. A retransmit after lost DATA does not. Duplicates also come from netem itself (<code>duplicate 5%</code>), so the two counters (24 retransmits, 21 duplicates dropped) don't map one-to-one. Throughput is capped at one message per RTT: 100 × 50 ms = 5 s, plus about 20 × 200 ms of timeouts ≈ 9 s. That matches the 7.5–8.7 s we measured.</p>
+
+<h3>Sliding window (scenario 3)</h3>
+<p>Allow up to <strong>16 unacknowledged packets in flight</strong>, each with its own timer (selective repeat). The window's left edge <code>base</code> is the oldest unacknowledged number. It slides forward when that packet is ACKed. The receiver now sees gaps, because #10 arrives while #9 is still missing. It keeps #10… in a <strong>reorder buffer</strong> and hands them to the application only when #9 closes the gap. That is the "чекали в буфері: 75" line. 16 packets per RTT instead of 1 gives about 5× here. It's not 16×, because every loss still stalls the window for a 200 ms RTO.</p>
+
+<h3>Why TCP is still faster (scenario 4)</h3>
+<ul>
+<li><strong>Bigger packets:</strong> TCP packs about 14 of our messages into one 1448-byte segment (we set <code>lo</code> MTU to 1500 like Ethernet), so it has about 7 segments to deliver instead of 100 datagrams.</li>
+<li><strong>Fast retransmit + SACK:</strong> TCP detects a loss from duplicate ACKs in about 1 RTT. It doesn't wait for a timer.</li>
+<li><strong>Adaptive RTO:</strong> TCP measures RTT and sets RTO from it (minimum 200 ms on Linux). Our RTO is a fixed guess.</li>
+<li><strong>But:</strong> a lost SYN costs the full initial RTO of 1 s. We saw 1.15–1.18 s in 2 of 5 runs. Reliability is not the same as low latency (see demo 04).</li>
+</ul>
+<p>Our toy has no congestion control and no flow control. It will happily blast 16 packets into a congested network. That is the part that makes a homegrown protocol dangerous on the real Internet, and it's why QUIC re-implements TCP's congestion control on top of UDP.</p>
+
+<h2 id="run">3. Running it live</h2>
+<p>netem only exists in Linux, so <code>run_demo.sh</code> builds a small image and runs everything in one container with <code>--cap-add NET_ADMIN</code>.</p>
+<pre><code>cd ~/Projects/sandbox/ports/09-reliable-udp
+./run_demo.sh                          # all: naive saw window tcp  (~15 s)
+./run_demo.sh naive window             # just some of them
+LOSS=20% ./run_demo.sh saw window      # more loss: the gap between saw and window grows
+DELAY=25ms DUP=0% REORDER=0% ./run_demo.sh naive   # loss only
+NO_DOCKER=1 ./run_demo.sh              # macOS, no netem: nothing is lost (baseline)</code></pre>
+<p>Manual, two terminals (students see both sides):</p>
+<pre><code>./run_demo.sh shell                    # container in background, netem already on
+docker exec -it demo09-reliable-udp python3 receiver.py reliable      # T1
+docker exec -it demo09-reliable-udp python3 sender.py window          # T2
+docker exec -it demo09-reliable-udp tcpdump -i lo -n -tttt 'udp port 9109'   # T3, optional
+./run_demo.sh stop</code></pre>
+
+<div class="tw"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>sender.py</code></td><td><code>naive | saw | window | tcp</code>; <code>--count</code> (100), <code>--size</code> (100), <code>--rto</code> (0.2 s), <code>--window</code> (16), <code>--gap</code> (naive, 10 ms), <code>--log</code></td></tr>
+<tr><td><code>receiver.py</code></td><td><code>naive | reliable | tcp</code>; <code>--count</code>, <code>--idle</code> (naive: 1 s of silence = done), <code>--log</code></td></tr>
+<tr><td><code>common.py</code></td><td>ports, header format, message format, helpers for compact number lists</td></tr>
+<tr><td><code>run_demo.sh</code>, <code>Dockerfile</code></td><td>builds the image, turns on netem (<code>LOSS DELAY DUP REORDER</code>), runs the scenarios; <code>shell</code>/<code>stop</code> for manual mode</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>real output: Docker with netem, macOS baseline, timing spread over several runs</td></tr>
+</table></div>
+
+<h2 id="see">4. What students will see (real output)</h2>
+<p class="note">From <code>expected_output.txt</code>, section A. Annotations in green are added here, not printed by the scripts. Numbers change every run.</p>
+
+<h3>1. Raw UDP</h3>
+<pre><code>Надіслано 100 дейтаграм. Що з них дійшло — відправник не знає   <span class="ann">← sendto() succeeded 100 times</span>
+Порядок надходження (97 дейтаграм; * дублікат, &lt; не по порядку):
+    2   1&lt;    4    5    6    7   10   8&lt;   9&lt;  10*   13  11&lt;  12&lt;   16  14&lt;  15&lt;   18  17&lt;   19  19*
+   ...                                                    <span class="ann">← 3 is missing; 10 arrives twice</span>
+<span class="hl">Загублено:       10</span>  [3, 33, 39, 51, 54, 57, 65, 68, 75, 95]
+<span class="hl">Дублікати:        7</span>  [10, 19, 27, 31, 49, 62, 98]
+<span class="hl">Не по порядку:   31</span>  [1, 8-9, 11-12, 14-15, ...]
+Застосунок отримав би 97 повідомлень замість 100; помилок ОС — жодної   <span class="ann">← 97 ≠ 100, and nobody complained</span></code></pre>
+
+<h3>2. Stop-and-wait</h3>
+<pre><code>Stop-and-wait: надсилаємо пакет, чекаємо ACK до 200 мс, інакше повтор
+  повтор #5   (таймаут 200 мс без ACK)
+  повтор #7   (таймаут 200 мс без ACK)
+  повтор #7   (таймаут 200 мс без ACK)                    <span class="ann">← lost twice in a row</span>
+  ...
+<span class="hl">Готово: 100 повідомлень, 10000 байтів за 8.65 с (1.1 КБ/с)</span>
+Відправлено дейтаграм DATA: 124 (з них повторів: 24)
+--- приймач
+  #7   дублікат -&gt; відкинули (ACK ще раз)                 <span class="ann">← DATA arrived, the ACK was lost</span>
+ACK надіслано: 121; дублікатів відкинуто: 21; чекали в буфері: 0   <span class="ann">← one in flight: never out of order</span>
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+
+<h3>3. Sliding window</h3>
+<pre><code>  повтор #9   (таймаут; вікно стоїть на #9)                <span class="ann">← window stuck until #9 is ACKed</span>
+  повтор #16  (таймаут; вікно стоїть на #9)
+<span class="hl">Готово: 100 повідомлень, 10000 байтів за 1.67 с (5.8 КБ/с)</span>   <span class="ann">← ~5× faster than stop-and-wait</span>
+Відправлено дейтаграм DATA: 125 (з них повторів: 25)
+--- приймач
+  #10  прийшов раніше за #9 -&gt; у буфер, чекаємо #9      <span class="ann">← a gap: hold, don't deliver</span>
+  #11  прийшов раніше за #9 -&gt; у буфер, чекаємо #9
+ACK надіслано: 119; дублікатів відкинуто: 19; <span class="hl">чекали в буфері: 75</span>
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+
+<h3>4. TCP</h3>
+<pre><code><span class="hl">Готово: 100 повідомлень, 10000 байтів за 0.10 с (93.8 КБ/с)</span>
+Повтори, порядок, дублікати: усе це зробило ядро (TCP), застосунок не бачив нічого
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+<p class="note">Spread over several runs with the same netem: stop-and-wait 7.5–8.7 s, window 1.5–1.9 s, TCP 0.10–1.18 s.</p>
+
+<h2 id="ask">5. Things to point out or ask students</h2>
+<ul>
+<li><strong>Before scenario 1, ask:</strong> "10% loss. How many of 100 will arrive, and will <code>sendto()</code> report an error?" Then point at "помилок ОС — жодної".</li>
+<li>"Why does the receiver send an ACK for a duplicate it throws away?" Because the duplicate usually means the ACK was lost. Without a fresh ACK the sender retransmits forever.</li>
+<li>"Was it the DATA or the ACK that got lost?" The sender can't tell. It only sees silence. The receiver can: a retransmit it has already seen means the ACK was lost. (Careful with arithmetic on the counters: netem's <code>duplicate 5%</code> also produces duplicates.)</li>
+<li>"How do we choose RTO?" Too small: needless retransmits (spurious duplicates). Too large: long stalls. TCP measures RTT continuously (SRTT/RTTVAR, RFC 6298). Real run with <code>--rto 0.03</code> (below the RTT): 86 retransmits, 66 useless duplicates, 186 DATA datagrams for 100 messages. It finished faster (4.75 s), but only by nearly doubling the traffic. On a shared network that is how a protocol causes congestion.</li>
+<li>"Why is the window not 16× faster?" Every loss still costs a 200 ms timer, and the window can't slide past the hole. That's why TCP added fast retransmit and SACK.</li>
+<li>"What's missing compared to real TCP?" Congestion control (we'd flood a busy link), flow control (receiver buffer size), adaptive RTO, connection setup, checksum over our header (UDP has one, but it's optional in IPv4).</li>
+<li>"So who does this in real life?" QUIC/HTTP/3 (everything above + congestion control, in user space), DNS (just a retry timer), games and VoIP (seq numbers to drop stale data, no retransmits: demo 04), TFTP (literally stop-and-wait).</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do if it misbehaves live</h2>
+<div class="box warn">
+<ul>
+<li><strong>Docker not running / no internet for the first build:</strong> build the image before class (<code>./run_demo.sh naive</code> once). Fallback: section 7.</li>
+<li><strong><code>RTNETLINK answers: Operation not permitted</code>:</strong> the container is missing <code>--cap-add NET_ADMIN</code>. <code>run_demo.sh</code> adds it. If you're running <code>docker run</code> by hand, add it yourself.</li>
+<li><strong><code>Conflict. The container name ... is already in use</code>:</strong> <code>./run_demo.sh stop</code> or <code>docker rm -f demo09-reliable-udp demo09-reliable-udp-run</code>.</li>
+<li><strong>Naive run shows 0 out of order:</strong> possible with <code>REORDER=0%</code>, or if you increased <code>--gap</code> above 25 ms (then nothing can overtake). Use the defaults.</li>
+<li><strong>Window not much faster than stop-and-wait:</strong> happens with very high loss (<code>LOSS=40%</code>). Every packet waits for timers. With the defaults the ratio was 4.4–5.2× in the three full runs we recorded.</li>
+<li><strong>TCP took ~1.2 s:</strong> the SYN (or SYN-ACK) was lost and Linux waited its 1 s initial RTO. Turn it into a teaching moment: run <code>./run_demo.sh tcp</code> 3–4 times and compare.</li>
+<li><strong><code>NO_DOCKER=1</code> on macOS shows no losses:</strong> that's expected. It's a baseline that proves the code works. The losses come from netem, not from the code.</li>
+<li><strong>Python version:</strong> tested with macOS <code>/usr/bin/python3</code> 3.9.6 and Docker Python 3.12. No third-party packages.</li>
+</ul>
+</div>
+
+<h2 id="fallback">7. 1-minute fallback</h2>
+<div class="box key">
+<p>If nothing runs, open <code>expected_output.txt</code> and show these lines in order:</p>
+<ol>
+<li>Scenario 1: <code>Загублено: 10 … Дублікати: 7 … Не по порядку: 31</code> and <code>помилок ОС — жодної</code>. Raw UDP on a bad network.</li>
+<li>Scenario 2: <code>8.65 с</code>, <code>повторів: 24</code>, <code>100 з 100 … ✓</code>. Reliable, but slow.</li>
+<li>Scenario 3: <code>1.67 с</code>, <code>чекали в буфері: 75</code>. A window gives speed; the buffer restores order.</li>
+<li>Scenario 4: <code>0.10 с</code>. TCP does all of this (and more) in the kernel, which is the point of the TCP slide.</li>
+</ol>
+</div>
+
+</main>
+</body>
+</html>

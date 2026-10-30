@@ -1,0 +1,15 @@
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [S], seq 2601329782, win 65535, options [mss 16344,nop,wscale 6,nop,nop,TS val 2173697749 ecr 0,sackOK,eol], length 0
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [S.], seq 3958665299, ack 2601329783, win 65535, options [mss 16344,nop,wscale 6,nop,nop,TS val 2961455466 ecr 2173697749,sackOK,eol], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [.], ack 1, win 6380, options [nop,nop,TS val 2173697749 ecr 2961455466], length 0
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [.], ack 1, win 6380, options [nop,nop,TS val 2961455466 ecr 2173697749], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [P.], seq 1:101, ack 1, win 6380, options [nop,nop,TS val 2173697749 ecr 2961455466], length 100
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [.], ack 101, win 6379, options [nop,nop,TS val 2961455466 ecr 2173697749], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [P.], seq 101:201, ack 1, win 6380, options [nop,nop,TS val 2173698753 ecr 2961455466], length 100
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [.], ack 201, win 6378, options [nop,nop,TS val 2961456470 ecr 2173698753], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [P.], seq 201:301, ack 1, win 6380, options [nop,nop,TS val 2173699758 ecr 2961456470], length 100
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [.], ack 301, win 6377, options [nop,nop,TS val 2961457475 ecr 2173699758], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [F.], seq 301, ack 1, win 6380, options [nop,nop,TS val 2173699758 ecr 2961457475], length 0
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [.], ack 302, win 6377, options [nop,nop,TS val 2961457475 ecr 2173699758], length 0
+IP 127.0.0.1.9000 > 127.0.0.1.61970: Flags [F.], seq 1, ack 302, win 6377, options [nop,nop,TS val 2961457475 ecr 2173699758], length 0
+IP 127.0.0.1.61970 > 127.0.0.1.9000: Flags [.], ack 2, win 6380, options [nop,nop,TS val 2173699758 ecr 2961457475], length 0
+

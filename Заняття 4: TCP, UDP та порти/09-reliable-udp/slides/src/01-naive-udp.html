@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css">
+<style>pre{font-size:15px} body{width:max-content}</style></head><body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Сирий UDP — сценарій 1 (Docker, netem: delay 25ms loss 10% duplicate 5% reorder 25%)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh naive</span>
+<span class="hdr">1. Сирий UDP: 100 × sendto() -> що дійшло?</span>
+--- відправник: python3 sender.py naive --port 9109
+<span class="k">Надіслано 100 дейтаграм.</span> Що з них дійшло — відправник не знає
+--- приймач: python3 receiver.py naive --port 9109
+Порядок надходження (97 дейтаграм; * дублікат, &lt; не по порядку):
+    2   <span class="w">1&lt;</span>    4    5    6    7   10   <span class="w">8&lt;</span>   <span class="w">9&lt;</span>  <span class="bad">10*</span>   13  <span class="w">11&lt;</span>  <span class="w">12&lt;</span>   16  <span class="w">14&lt;</span>  <span class="w">15&lt;</span>   18  <span class="w">17&lt;</span>   19  <span class="bad">19*</span>
+   20   21   24  <span class="w">22&lt;</span>  <span class="w">23&lt;</span>   27  <span class="w">25&lt;</span>  <span class="w">26&lt;</span>   29  <span class="bad">27*</span>  <span class="w">28&lt;</span>   30   31  <span class="bad">31*</span>   32   34   37  <span class="w">35&lt;</span>  <span class="w">36&lt;</span>   40
+<span class="cut">…</span>
+<span class="bad">Загублено:       10</span>  [3, 33, 39, 51, 54, 57, 65, 68, 75, 95]
+<span class="bad">Дублікати:        7</span>  [10, 19, 27, 31, 49, 62, 98]
+<span class="w">Не по порядку:   31</span>  [1, 8-9, 11-12, 14-15, 17, 22-23, 25-26, 28, 35-36, 38, ...]
+Застосунок отримав би 97 повідомлень замість 100; <span class="bad">помилок ОС — жодної</span>
+<span class="m">← 3 немає, 10 прийшов двічі, 1 після 2 — і sendto() жодного разу не поскаржився</span></pre></div>
+</body></html>

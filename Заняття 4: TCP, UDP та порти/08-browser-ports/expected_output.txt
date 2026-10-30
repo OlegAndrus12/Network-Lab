@@ -1,0 +1,110 @@
+Реальний вивід демо 08 «Порти браузера», 22.10.2026, ~23:45
+УВАГА: віддалені IP-адреси АНОНІМІЗОВАНО (203.0.113.x / 2001:db8::x, RFC 5737/3849).
+Порти, назви процесів, PID, кількість сокетів і байтів справжні. Локальна адреса 192.168.0.155 —
+приватна адреса LAN (не ідентифікує машину в інтернеті), залишена як є.
+Chrome був уже відкритий з вкладками лектора; YouTube спеціально НЕ відкривали, тому сокетів менше,
+ніж буде в аудиторії з відео. PID 46391 — окремий екземпляр Chrome під керуванням Playwright
+(інструмент автоматизації), PID 745 — звичайний Chrome.
+
+########################################################################
+### A. macOS 15 (Darwin 24.6), Chrome 155: ./run_demo.sh
+########################################################################
+=== 1. lsof -i -P -n | grep -iE 'chrome|safari'  (команда без +c 0) ===
+знайдено рядків: 0
+з +c 0 (повна назва процесу): 21
+
+=== 2. lsof +c 0 -i -P -n | grep -iE 'chrom|safari|webkit|firefox|brave|edge|browser|opera|vivaldi' | head -15 ===
+COMMAND                                    PID        USER   FD   TYPE             DEVICE SIZE/OFF   NODE NAME
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   25u  IPv4 0xe32fd4edc8f6687a      0t0    UDP 192.168.0.155:52189->203.0.113.1:443
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   26u  IPv4 0xfcc6951a242f2af5      0t0    TCP 192.168.0.155:58173->203.0.113.2:5228 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   27u  IPv4 0x4c01055f70f5f469      0t0    TCP 192.168.0.155:57765->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   28u  IPv4 0xe60d68ed13f70088      0t0    UDP 192.168.0.155:58109->203.0.113.4:443
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   29u  IPv4 0xc44d75c91d50eeff      0t0    UDP 192.168.0.155:53106->203.0.113.5:443
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   34u  IPv4 0xd4d54e0dc581fc97      0t0    TCP 192.168.0.155:54892->203.0.113.6:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   36u  IPv4  0x16de44d5c63b499      0t0    TCP 192.168.0.155:52910->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   38u  IPv4  0xded2e97b2fa250f      0t0    TCP 192.168.0.155:63385->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   39u  IPv4 0xf5f2c7e7e936cf94      0t0    TCP 192.168.0.155:54477->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   70u  IPv6 0xf8a2a9be129a402e      0t0    UDP *:5353
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   71u  IPv4 0x55139159527e0898      0t0    UDP *:5353
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   72u  IPv6 0xba7564cbecea8653      0t0    UDP *:5353
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   73u  IPv6 0xd6fe28cf0915d47c      0t0    UDP *:5353
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   74u  IPv6 0xd6fcc045f1dea213      0t0    UDP *:5353
+Google\x20Chrome\x20Helper\x20(Aperitif)   745 oleh.andrus   75u  IPv6 0x9e1c1fbe36f17313      0t0    UDP *:5353
+
+=== 3. Підсумок (browser_ports.py) ===
+=== Сокети браузера за процесом ===
+
+Google Chrome Helper (Aperitif)  (PID 745, Chrome/Chromium): усього 18 сокетів
+  TCP → :443  (HTTPS, HTTP/1.1 або HTTP/2): 5
+  UDP → :443  (QUIC = HTTP/3):              3
+  TCP → :80   (HTTP без шифрування):        0
+  TCP → :5228 (Google push (FCM)): 1
+  UDP слухає :5353 (mDNS, пошук пристроїв у LAN): 9
+  Локальні (ефемерні) порти: 52189–63385  (9 шт.)
+
+Google Chrome Helper  (PID 46391, Chrome/Chromium): усього 3 сокетів
+  TCP → :443  (HTTPS, HTTP/1.1 або HTTP/2): 0
+  UDP → :443  (QUIC = HTTP/3):              1
+  TCP → :80   (HTTP без шифрування):        1
+  TCP → :5228 (Google push (FCM)): 1
+  Локальні (ефемерні) порти: 58264–58614  (3 шт.)
+
+=== Ефемерні порти ===
+Браузер зараз використовує локальні порти 52189–63385
+Діапазон ОС (macOS sysctl net.inet.ip.portrange.first/last): 49152–65535  (16384 портів)
+У діапазоні ОС: 12 з 12
+Для порівняння: IANA 49152–65535; Linux за замовчуванням 32768–60999; Windows 49152–65535
+
+(Віддалені IP замінено на документаційні 203.0.113.x / 2001:db8::x; порти й процеси справжні.)
+
+=== 4. Діапазон ефемерних портів ОС ===
+net.inet.ip.portrange.first: 49152
+net.inet.ip.portrange.last: 65535
+
+########################################################################
+### B. macOS: netstat -anv -p udp | grep '\.443 '   (стовпці скорочено; rxbytes/txbytes — байти)
+###    PID 745 = Google Chrome Helper (Aperitif)  --utility-sub-type=network.mojom.NetworkService
+###    PID 46391 = Google Chrome Helper (Playwright Chrome)
+###    PID 9126 = Claude Helper (настільний застосунок на Electron = теж Chromium, теж QUIC)
+###    Віддалені адреси замінено на 203.0.113.x (не нумеровано: тут лише порти).
+########################################################################
+Proto  Local                Foreign          rxbytes  txbytes  pid
+udp4   192.168.0.155.53106  203.0.113.x.443  17204    9982     745
+udp4   192.168.0.155.58264  203.0.113.x.443  14694    7039     46391
+udp4   192.168.0.155.58109  203.0.113.x.443  3400838  157763   745
+udp4   192.168.0.155.52189  203.0.113.x.443  62736    17677    745
+udp4   192.168.0.155.61651  203.0.113.x.443  1469842  1141007  9126
+   ↑ 3 400 838 байтів отримано по ОДНОМУ UDP-сокету :443: це потік HTTP/3 (QUIC), а не DNS.
+
+########################################################################
+### C. Linux у Docker (python:3.12-slim, контейнер demo08-linux): ./linux_check.sh
+###    Браузера в контейнері немає: python3 відкриває 1 TCP і 1 UDP сокет до 1.1.1.1:443
+###    (1.1.1.1 — публічний DNS Cloudflare, не адреса лектора).
+########################################################################
+=== cat /proc/sys/net/ipv4/ip_local_port_range ===
+32768	60999
+
+=== lsof -i -P -n ===
+COMMAND PID USER FD   TYPE DEVICE SIZE/OFF NODE NAME
+python3 354 root 3u  IPv4 813190      0t0  TCP 172.17.0.6:43386->1.1.1.1:443 (ESTABLISHED)
+python3 354 root 4u  IPv4 813191      0t0  UDP 172.17.0.6:56215->1.1.1.1:443 
+
+=== ss -tunp ===
+Netid State Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                          
+udp   ESTAB 0      0         172.17.0.6:56215      1.1.1.1:443  users:(("python3",pid=354,fd=4))
+tcp   ESTAB 0      0         172.17.0.6:43386      1.1.1.1:443  users:(("python3",pid=354,fd=3))
+
+=== browser_ports.py --all ===
+=== Сокети за процесом ===
+
+python3  (PID 354, інше): усього 2 сокетів
+  TCP → :443  (HTTPS, HTTP/1.1 або HTTP/2): 1
+  UDP → :443  (QUIC = HTTP/3):              1
+  TCP → :80   (HTTP без шифрування):        0
+  Локальні (ефемерні) порти: 43386–56215  (2 шт.)
+
+=== Ефемерні порти ===
+Процеси зараз використовують локальні порти 43386–56215
+Діапазон ОС (Linux /proc/sys/net/ipv4/ip_local_port_range): 32768–60999  (28232 портів)
+У діапазоні ОС: 2 з 2
+Для порівняння: IANA 49152–65535; Linux за замовчуванням 32768–60999; Windows 49152–65535

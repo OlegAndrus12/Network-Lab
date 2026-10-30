@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css">
+<style>pre{font-size:15px} body{width:max-content}</style></head><body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">ті самі 100 повідомлень, той самий netem — чотири способи</span></div>
+<pre><span class="p">$</span> <span class="cmd">sed -n '/^# A/,/^# B/p' expected_output.txt | grep -E '^[0-9]\. |Загублено|Готово|повторів|Доставлено'</span>
+<span class="hdr">1. Сирий UDP: 100 × sendto() -> що дійшло?</span>
+<span class="bad">Загублено:       10</span>  [3, 33, 39, 51, 54, 57, 65, 68, 75, 95]
+<span class="hdr">2. Stop-and-wait: номер + ACK + таймер повтору (надійно, але повільно)</span>
+Готово: 100 повідомлень, 10000 байтів за <span class="bad">8.65 с</span> (1.1 КБ/с)
+Відправлено дейтаграм DATA: 124 (з них повторів: 24)
+<span class="ok">Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</span>
+<span class="hdr">3. Ковзне вікно на 16 пакетів: надійно і швидко</span>
+Готово: 100 повідомлень, 10000 байтів за <span class="w">1.67 с</span> (5.8 КБ/с)
+Відправлено дейтаграм DATA: 125 (з них повторів: 25)
+<span class="ok">Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</span>
+<span class="hdr">4. Те саме через TCP: усе це робить ядро</span>
+Готово: 100 повідомлень, 10000 байтів за <span class="k">0.10 с</span> (93.8 КБ/с)
+<span class="ok">Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</span>
+<span class="m">← TCP: великі сегменти, fast retransmit + SACK, адаптивний RTO — і все в ядрі</span></pre></div>
+</body></html>

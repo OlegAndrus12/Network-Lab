@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css">
+<style>pre{font-size:14px} .win{flex:1 1 auto} body{width:max-content}</style></head><body>
+<div class="row">
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">відправник — stop-and-wait</span></div>
+<pre><span class="p">$</span> <span class="cmd">python3 sender.py saw</span>
+Stop-and-wait: надсилаємо пакет, чекаємо ACK до 200 мс, інакше повтор
+  <span class="w">повтор #5</span>   (таймаут 200 мс без ACK)
+  <span class="w">повтор #7</span>   (таймаут 200 мс без ACK)
+  <span class="w">повтор #7</span>   (таймаут 200 мс без ACK)
+  <span class="w">повтор #14</span>  (таймаут 200 мс без ACK)
+  <span class="w">повтор #23</span>  (таймаут 200 мс без ACK)
+  <span class="cut">…</span>
+Готово: 100 повідомлень, 10000 байтів за <span class="bad">8.65 с</span> (1.1 КБ/с)
+Відправлено дейтаграм DATA: 124 (з них <span class="w">повторів: 24</span>)
+Приймач підтвердив кінець (FIN)
+<span class="m">← один пакет у польоті: ≤ 1 повідомлення за RTT (50 мс)</span></pre></div>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">приймач — reliable</span></div>
+<pre><span class="p">$</span> <span class="cmd">python3 receiver.py reliable</span>
+UDP-приймач (reliable) слухає 127.0.0.1:9109
+  #7   <span class="w">дублікат</span> -> відкинули (ACK ще раз)
+  #14  <span class="w">дублікат</span> -> відкинули (ACK ще раз)
+  #19  <span class="w">дублікат</span> -> відкинули (ACK ще раз)
+  #32  <span class="w">дублікат</span> -> відкинули (ACK ще раз)
+  <span class="cut">…</span>
+ACK надіслано: 121; дублікатів відкинуто: 21; чекали в буфері: 0
+<span class="ok">Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</span>
+<span class="m">← дублікат = «мій ACK загубився»: відповідаємо ACK ще раз</span>
+<span class="m">← дублікати дає і netem (duplicate 5%), не лише загублені ACK</span></pre></div>
+</div></body></html>

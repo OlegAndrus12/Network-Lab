@@ -1,0 +1,12 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">macOS · netstat -anv -p udp</span></div>
+<pre><span class="p">$</span> <span class="cmd">netstat -anv -p udp | grep '\.443 '</span>
+<span class="m"># стовпці скорочено; IP анонімізовано</span>
+<span class="m"># pid: 745 = Chrome, 46391 = Chrome (Playwright), 9126 = Claude Helper</span>
+<span class="h">Proto  Local                Foreign          rxbytes  txbytes  pid</span>
+<span class="udp">udp4</span>   192.168.0.10.<span class="eph">53106</span>   203.0.113.x.<span class="p443">443</span>  17204    9982     745
+<span class="udp">udp4</span>   192.168.0.10.<span class="eph">58264</span>   203.0.113.x.<span class="p443">443</span>  14694    7039     46391
+<span class="row"><span class="udp">udp4</span>   192.168.0.10.<span class="eph">58109</span>   203.0.113.x.<span class="p443">443</span>  <span class="num">3400838</span>  157763   745</span>  <span class="m">← 3,4 МБ по одному</span>
+<span class="udp">udp4</span>   192.168.0.10.<span class="eph">52189</span>   203.0.113.x.<span class="p443">443</span>  62736    17677    745    <span class="m">  UDP-сокету: це HTTP/3</span>
+<span class="udp">udp4</span>   192.168.0.10.<span class="eph">61651</span>   203.0.113.x.<span class="p443">443</span>  1469842  1141007  9126   <span class="m">  (QUIC), а не DNS</span></pre>
+</div></body></html>

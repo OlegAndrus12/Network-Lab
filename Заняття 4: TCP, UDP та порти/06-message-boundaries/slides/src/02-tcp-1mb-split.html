@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"><style>body{width:max-content}</style></head><body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">run_demo.sh — сценарій 3 (macOS)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="cut">…</span>
+<span class="hdr">3. TCP: ОДИН send() на 1 МБ -> скільки recv()? (розрізання)</span>
+--- відправник: python3 sender.py big --port 9116
+sendall(): <span class="k">1000000 байтів одним викликом</span>
+<span class="cut">…</span>
+--- приймач: python3 receiver.py tcp --port 9116 --delay 0 --bufsize <span class="k">1000000</span>   <span class="m">← просимо 1 МБ за раз</span>
+<span class="cut">…</span>
+  recv #1:  <span class="w">48996 байтів</span>  b'&lt;MSG-1 -------' ... b'--------'
+            початки: &lt;MSG-1; кінці: <span class="bad">—</span>        <span class="m">← початок без кінця</span>
+  recv #2: <span class="w">951004 байтів</span>  b'--------------' ... b'- END-1&gt;'
+            початки: <span class="bad">—</span>; кінці: END-1&gt;        <span class="m">← кінець без початку</span>
+<span class="bad">Разом recv(): 2, байтів: 1000000</span>
+(розміри шматків щоразу інші — і саме це головне)</pre></div></body></html>

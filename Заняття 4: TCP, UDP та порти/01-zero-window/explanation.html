@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zero Window Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1d1d1b; --muted: #5d5b55; --border: #dedad0;
+  --accent: #1f5fa8; --accent-soft: #e6eef8; --warn: #9a5b00; --warn-soft: #fbf0dc;
+  --code-bg: #f3f1ec; --hl: #b3261e; --ok: #2e6b2f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --surface: #1f1f1c; --text: #e9e6df; --muted: #a8a49a; --border: #3a3934;
+    --accent: #7fb0ec; --accent-soft: #1d2a3a; --warn: #e2b25c; --warn-soft: #33291a;
+    --code-bg: #262622; --hl: #ff8a80; --ok: #8fcf8f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --surface: #1f1f1c; --text: #e9e6df; --muted: #a8a49a; --border: #3a3934;
+  --accent: #7fb0ec; --accent-soft: #1d2a3a; --warn: #e2b25c; --warn-soft: #33291a;
+  --code-bg: #262622; --hl: #ff8a80; --ok: #8fcf8f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.35rem; margin: 44px 0 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 26px 0 6px; }
+p, li { max-width: 72ch; }
+.lead { color: var(--muted); font-size: 1.05rem; margin-top: 0; }
+a { color: var(--accent); }
+code { overflow-wrap: anywhere; font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; overflow-x: auto; margin: 10px 0 16px;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+pre .hl { color: var(--hl); font-weight: 600; }
+pre .ok { color: var(--ok); font-weight: 600; }
+pre .c { color: var(--muted); }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 0.94rem; }
+.tablewrap { overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; vertical-align: top; }
+th { background: var(--surface); }
+.pipe { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; margin: 14px 0 18px; }
+.box { flex: 1 1 130px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.9rem; }
+.box b { display: block; font-size: 0.95rem; }
+.box.full { border-color: var(--hl); }
+.arrow { align-self: center; color: var(--muted); }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
+.toc ol { margin: 4px 0; padding-left: 20px; }
+.tag { display: inline-block; font-size: 0.78rem; padding: 0 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Zero window: the lazy server</h1>
+<p class="lead">Live demo 01 for Topic 4 (TCP, UDP and ports). Folder <code>ports/01-zero-window</code>, port 9101, Docker names <code>demo01-*</code>. Read this before class; everything quoted below is real output captured on 22.10.2026.</p>
+
+<div class="toc">
+<ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mechanism">The mechanism</a></li>
+<li><a href="#run">How to run it live</a></li>
+<li><a href="#see">What students will see</a></li>
+<li><a href="#ask">Things to point out or ask</a></li>
+<li><a href="#gotchas">Gotchas and troubleshooting</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+</ol>
+</div>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>Supports the slide <b>«win»</b> and the section <b>«Керування швидкістю»</b> (flow control): it makes <b>“win = 0 → стоп”</b> concrete.</p>
+<ul>
+<li><code>server.py</code> calls <code>accept()</code> and then does not call <code>recv()</code> for N seconds (or never).</li>
+<li><code>client.py</code> calls <code>send()</code> in a loop and prints progress. After about a quarter of a second the progress stops: <code>send()</code> is blocked. The client prints exactly how many bytes it handed to <code>send()</code>, how many are still in its own send buffer, and how many reached the server.</li>
+<li>tcpdump shows the server advertising a shrinking window, then <code>win 0</code>, then the client's <b>zero-window probes</b> at growing intervals.</li>
+<li><code>ss -tn</code> (Linux) or <code>netstat -an -p tcp</code> (macOS) show the same thing from the kernel's side: <b>Recv-Q</b> grows on the server socket, <b>Send-Q</b> on the client socket.</li>
+<li>Bonus: when the server finally starts reading, it sends a <b>window update</b> and the client un-freezes.</li>
+</ul>
+
+<h2 id="mechanism">2. The mechanism</h2>
+
+<h3>Where the bytes actually sit</h3>
+<div class="pipe">
+  <div class="box"><b>client app</b>send() copies bytes into the kernel and returns</div>
+  <div class="arrow">→</div>
+  <div class="box full"><b>client send buffer</b>Send-Q: bytes not yet ACKed (or not yet sent)</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>network</b>segments, limited by the peer's window</div>
+  <div class="arrow">→</div>
+  <div class="box full"><b>server receive buffer</b>Recv-Q: bytes ACKed but not read by the app</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>server app</b>recv() would drain it… but it sleeps</div>
+</div>
+<p><code>send()</code> does not mean “delivered”. It means “copied into my kernel's send buffer”. <code>recv()</code> does not fetch from the network; it copies out of the receive buffer, which the kernel filled long ago and already ACKed.</p>
+
+<h3>Flow control step by step</h3>
+<ol>
+<li>Every segment the server sends carries <code>win</code>: how many more bytes it can accept right now, i.e. free space in its receive buffer. With window scaling (negotiated in the SYN/SYN-ACK, <code>wscale 7</code> on Linux loopback) the real value is <code>win × 2^wscale</code>, so <code>win 737</code> means 737 × 128 = 94 336 bytes.</li>
+<li>The server app never calls <code>recv()</code>, so the buffer fills and the advertised window shrinks: 94 336 → 14 464 → <b>0</b>. The ACK with <code>win 0</code> means: “I have everything up to byte N, but don't send more”.</li>
+<li>The client must stop. Unsent data piles up in its send buffer. Once the send buffer is full, <code>send()</code> blocks: the program freezes for a purely network reason.</li>
+<li>The danger: if the server's later “window is open again” ACK were lost, both sides would wait forever (the receiver doesn't retransmit pure ACKs). So the sender runs a <b>persist timer</b> (RFC 9293 §3.8.6.1, zero-window probing) and periodically sends a <b>zero-window probe</b> to provoke an ACK with the current window. Each unanswered-by-a-real-window probe doubles the interval (exponential backoff).</li>
+<li>When the app reads, buffer space frees up and the receiver sends a <b>window update</b> (a pure ACK with <code>win &gt; 0</code>, same ack number). The sender resumes immediately.</li>
+<li>As long as the receiver keeps answering probes, the connection is not dropped: this can last indefinitely. That's the correct behaviour: the peer is alive, just slow.</li>
+</ol>
+
+<h3>Linux details (what you'll see in Docker)</h3>
+<ul>
+<li><b>Probe format.</b> Linux sends a 0-byte segment with an <em>already-acknowledged</em> sequence number (snd_una − 1). The receiver must answer an out-of-window segment with an ACK, and that ACK carries the window. tcpdump shows it as <code>Flags [.], ack 1, win 512, length 0</code> from client to server.</li>
+<li><b>Interval.</b> Starts at the RTO, which on loopback is the 200 ms minimum, and doubles: measured <b>0.208, 0.416, 0.848, 1.664, 3.328 s</b>. Capped at 120 s.</li>
+<li><b>Why the server's replies look irregular.</b> The server's <code>win 0</code> replies came at gaps of <b>0.208, 1.264, 1.664, 3.328 s</b>: the reply to probe №2 is missing. Linux rate-limits ACKs sent in response to invalid/out-of-window segments (<code>net.ipv4.tcp_invalid_ratelimit</code>, default 500 ms). Probe №2 arrives 416 ms after the previous reply, so its answer is suppressed. I verified this by re-running with <code>--sysctl net.ipv4.tcp_invalid_ratelimit=0</code>: then every probe got a reply and the replies doubled cleanly (0.208, 0.416, 0.868, 1.661, 3.327). This is almost certainly why your own run showed “~0.2 s, 1.3 s, 1.7 s, 3.4 s”: those are the <em>server's</em> <code>ack …, win 0</code> lines, and the client's probes in between doubled cleanly.</li>
+<li><b>Numbers in Docker Desktop (kernel 6.12.76-linuxkit):</b> receive buffer 131 072 (<code>tcp_rmem</code> default), of which 127 168 bytes of payload fit; the client handed 1 900 544 bytes to <code>send()</code> before blocking; 1 773 376 of them were still in its own send buffer (autotuned up to <code>tcp_wmem</code> max 4 MB). Your run's 2 883 584 / 128 512 had the same shape on a different kernel/sysctl set; don't promise students a specific number.</li>
+</ul>
+
+<h3>macOS details (what you'll see natively)</h3>
+<ul>
+<li><b>Sender-side silly-window avoidance.</b> The macOS receiver stopped at <code>win 242</code> (242 × 64 = 15 488 bytes free). That is less than one MSS (16 344 on lo0), so the macOS <em>sender</em> refused to send a small segment and waited. The client is frozen, but the window is not literally 0 yet.</li>
+<li><b>Persist timer minimum is 5 s</b> (BSD <code>TCPTV_PERSMIN</code>). After 5 s the sender pushed the last 15 488 bytes; only then did the server answer <code>win 0</code>.</li>
+<li><b>Probe format.</b> macOS sends <b>1 byte of new data</b> beyond the window: <code>seq 408705:408706 … length 1</code>. The receiver drops the byte and re-ACKs with <code>win 0</code>.</li>
+<li><b>Interval.</b> Measured in a 70-s run: <b>5.04, 5.09, 5.08, 5.04, 5.00, 5.01, 7.14, 14.28 s</b>. Clamped to at least 5 s; it starts doubling only when RTO × 2<sup>n</sup> exceeds 5 s (max 60 s).</li>
+<li><b>Bigger buffers.</b> The macOS server buffered 408 704 bytes although <code>SO_RCVBUF</code> reported 131 072 (receive-buffer autosizing). Shrinking <code>SO_RCVBUF</code> on macOS loopback hardly changes anything (with 16 KB requested it still buffered 326 720 bytes). Use Docker for small numbers.</li>
+</ul>
+<div class="callout"><b>Bottom line:</b> the concept is identical on both OSes, but the Linux capture matches the slide (win 0 within 0.25 s, sub-second doubling probes). Run the Docker version for the main demo; mention macOS as “different implementation, same contract”.</div>
+
+<h2 id="run">3. How to run it live</h2>
+
+<h3>Files</h3>
+<div class="tablewrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>server.py</code></td><td>lazy server; <code>--port</code> (9101), <code>--rcvbuf</code>, <code>--read-after N</code> (0 = never read). Prints its Recv-Q (via FIONREAD, which does not read).</td></tr>
+<tr><td><code>client.py</code></td><td>send loop; <code>--chunk</code>, <code>--sndbuf</code>, <code>--total</code>, <code>--every</code> (progress step), <code>--give-up N</code>. Prints Send-Q (Linux SIOCOUTQ, macOS SO_NWRITE).</td></tr>
+<tr><td><code>annotate.py</code></td><td>explains a tcpdump text capture: window sizes in bytes, numbered probes with intervals, window update; <code>--live</code> mode filters a growing capture.</td></tr>
+<tr><td><code>run_demo.sh</code></td><td>everything in one command on Linux or macOS (tcpdump if allowed, server, client, ss/netstat snapshot, explained capture).</td></tr>
+<tr><td><code>docker_demo.sh</code>, <code>Dockerfile</code></td><td>same thing in a Linux container (image <code>demo01-zero-window</code>, container <code>demo01-zero-window</code>); no sudo on the host.</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>real output of 7 runs (Linux/Docker and macOS), the fallback.</td></tr>
+<tr><td><code>capture.txt</code>, <code>capture.pcap</code></td><td>the last run's capture (Linux, Docker). The pcap opens in Wireshark.</td></tr>
+</table></div>
+
+<h3>A. Recommended: Docker (Linux behaviour, matches the slide)</h3>
+<pre><code>cd ports/01-zero-window
+./docker_demo.sh                                   <span class="c"># server sleeps 10 s, then reads</span>
+RCVBUF=16384 SNDBUF=16384 ./docker_demo.sh         <span class="c"># small numbers (~57 KB total)</span>
+READ_AFTER=0 ./docker_demo.sh                      <span class="c"># server never reads; client gives up after 8 s</span>
+DELAY=50ms READ_AFTER=12 ./docker_demo.sh          <span class="c"># netem delay: probes start later (~0.37 s), still double</span>
+PORT=9111 ./docker_demo.sh                         <span class="c"># other port</span></code></pre>
+<p>The first run builds the image (needs internet for <code>apt-get</code>). Do it before class. Duration of the default run: ~12 s.</p>
+
+<h3>B. macOS natively</h3>
+<pre><code>./run_demo.sh                                       <span class="c"># works without tcpdump too</span>
+CAPTURE=sudo ./run_demo.sh                          <span class="c"># if you have sudo but no Wireshark/BPF access</span>
+READ_AFTER=40 ./run_demo.sh                         <span class="c"># long enough to see several 5-s probes</span></code></pre>
+<p>tcpdump runs automatically if you can read <code>/dev/bpf0</code> (Wireshark's ChmodBPF / group <code>access_bpf</code>), otherwise it is skipped with a message and you still get the freeze plus the <code>netstat</code> snapshot.</p>
+
+<h3>C. Manually, in 3–4 terminals (most visual)</h3>
+<p>Linux in Docker: open a shell in a long-lived container, then attach more terminals to it.</p>
+<pre><code><span class="c"># terminal 1</span>
+docker run --rm -it --name demo01-zw -v "$PWD":/demo -w /demo demo01-zero-window bash
+tcpdump -i lo -n -ttttt -s 128 'tcp port 9101'
+<span class="c"># terminal 2</span>
+docker exec -it demo01-zw python3 server.py --read-after 30
+<span class="c"># terminal 3</span>
+docker exec -it demo01-zw python3 client.py
+<span class="c"># terminal 4, while the client is frozen</span>
+docker exec -it demo01-zw ss -tn '( sport = :9101 or dport = :9101 )'</code></pre>
+<p>macOS equivalent:</p>
+<pre><code>tcpdump -i lo0 -n -ttttt -s 128 'tcp port 9101'     <span class="c"># needs sudo or BPF access</span>
+python3 server.py --read-after 30
+python3 client.py
+netstat -an -p tcp | grep -E 'Proto|\.9101 '         <span class="c"># Recv-Q / Send-Q columns</span>
+lsof -nP -iTCP:9101                                  <span class="c"># who owns the sockets</span></code></pre>
+<p>Afterwards: <code>python3 annotate.py capture.txt</code> on a saved text capture (it accepts both <code>-tt</code> and <code>-ttttt</code> timestamps).</p>
+
+<h2 id="see">4. What students will see</h2>
+
+<h3>The client freezes (Docker, real output)</h3>
+<pre><code>Сервер слухає 127.0.0.1:9101, SO_RCVBUF = 131 072 байтів
+Підключено до 127.0.0.1:9101, SO_SNDBUF = 2 626 560 байтів
+надіслано 262 144 байтів
+...
+надіслано 1 835 008 байтів
+[сервер] у буфері прийому 127 168 байтів (прочитано додатком: 0)
+<span class="hl">!!! send() ЗАБЛОКОВАНО: мій буфер відправлення повний, бо вікно сервера = 0</span>
+  передано в send():               1 900 544 байтів
+  ще лежить у МОЄМУ буфері (Send-Q): 1 773 376 байтів     <span class="c">← 93% never left the client machine</span>
+  дійшло до буфера сервера:         127 168 байтів        <span class="c">← = server's receive buffer</span>
+... send() чекає вже 2 с, надіслано 1 900 544 байтів</code></pre>
+
+<h3>The kernel's view (ss, taken 4 s in)</h3>
+<pre><code>State Recv-Q Send-Q  Local Address:Port  Peer Address:Port
+ESTAB 0      <span class="hl">1773376</span>     127.0.0.1:58236    127.0.0.1:9101   <span class="c">← client socket: Send-Q</span>
+ESTAB <span class="hl">127168</span> 0           127.0.0.1:9101     127.0.0.1:58236  <span class="c">← server socket: Recv-Q</span></code></pre>
+<p>The two numbers match the client's own report exactly. macOS (<code>netstat -an -p tcp</code>) shows the same columns:</p>
+<pre><code>Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)
+tcp4  <span class="hl">393216</span>      0  127.0.0.1.9101         127.0.0.1.59035        ESTABLISHED
+tcp4       0 <span class="hl">187740</span>  127.0.0.1.59035        127.0.0.1.9101         ESTABLISHED
+tcp4       0      0  127.0.0.1.9101         *.*                    LISTEN</code></pre>
+
+<h3>The capture, explained by annotate.py (Docker)</h3>
+<pre><code>   0.000 с  сервер > клієнт: [S.], ..., win 65483, length 0     ← рукостискання, wscale 7 (вікно × 128)
+   0.000 с     ... 1 сегм. з даними (32741 байтів) ...
+   0.000 с  сервер > клієнт: [.], ack 32742, win 737, length 0  ← вікно: 737 × 128 = 94336 байтів вільно
+   0.000 с     ... 4 сегм. з даними (127131 байтів) ...
+   0.041 с  сервер > клієнт: [.], ack 112705, win 113, length 0 ← вікно: 113 × 128 = 14464 байтів вільно
+   0.249 с     ... 1 сегм. з даними (14464 байтів) ...
+<span class="hl">   0.249 с  сервер > клієнт: [.], ack 127169, win 0, length 0   ← &lt;&lt;&lt; ВІКНО = 0: «стоп, мій буфер повний»</span>
+   0.457 с  клієнт > сервер: [.], ack 1, win 512, length 0      ← zero-window probe №1, +0.208 с
+   0.457 с  сервер > клієнт: [.], ack 127169, win 0, length 0   ← відповідь на пробу: досі win 0
+   0.873 с  клієнт > сервер: [.], ack 1, win 512, length 0      ← zero-window probe №2, +0.416 с   <span class="c">(no reply: rate limit)</span>
+   1.721 с  клієнт > сервер: [.], ack 1, win 512, length 0      ← zero-window probe №3, +0.848 с
+   1.721 с  сервер > клієнт: [.], ack 127169, win 0, length 0   ← відповідь на пробу: досі win 0
+   3.385 с  клієнт > сервер: [.], ack 1, win 512, length 0      ← zero-window probe №4, +1.664 с
+   3.385 с  сервер > клієнт: [.], ack 127169, win 0, length 0   ← відповідь на пробу: досі win 0
+   6.713 с  клієнт > сервер: [.], ack 1, win 512, length 0      ← zero-window probe №5, +3.328 с
+   6.713 с  сервер > клієнт: [.], ack 127169, win 0, length 0   ← відповідь на пробу: досі win 0
+<span class="ok">  10.105 с  сервер > клієнт: [.], ack 127169, win 523, length 0 ← &lt;&lt;&lt; WINDOW UPDATE: вікно знову відкрите, вільно 66944 байтів</span>
+  10.105 с     ... 2 сегм. з даними (66944 байтів) ...
+  10.105 с  сервер > клієнт: [.], ack 194113, win 0, length 0   ← &lt;&lt;&lt; ВІКНО = 0  <span class="c">(momentary: app reads slower than loopback delivers)</span>
+  10.105 с  сервер > клієнт: [.], ack 194113, win 737, length 0 ← &lt;&lt;&lt; WINDOW UPDATE ...
+  10.105 с     ... 181 сегм. з даними (7706838 байтів) + 84 ACK ...
+
+Проби клієнта (zero-window probes): 5, інтервали, с: 0.208, 0.416, 0.848, 1.664, 3.328
+Без відповіді сервера: проба №2 (Linux обмежує такі ACK: net.ipv4.tcp_invalid_ratelimit = 500 мс)
+Відповіді сервера 'win 0': 5, інтервали, с: 0.208, 1.264, 1.664, 3.328
+Сервер застряг на ack 127169: у його буфері 127168 байтів, які додаток не прочитав</code></pre>
+<p>Notes: <code>ack 127169</code> = 127 168 bytes received + 1 (the next expected byte), and it does not move during the whole freeze. Probe lines show <code>ack 1</code> because they are the client's ACK of the server's (empty) byte stream; tcpdump doesn't print <code>seq</code> for 0-length segments.</p>
+
+<h3>The unfreeze</h3>
+<pre><code>[сервер] Прокинувся, починаю recv()
+<span class="ok">&gt;&gt;&gt; send() знову працює після 9.5 с: вікно відкрилось (у сервера звільнилось місце)</span>
+[сервер] прочитано 1 074 880 байтів
+надіслано 2 097 152 байтів
+...
+З'єднання закрито, усього надіслано 8 000 000 байтів
+[сервер] Клієнт закрив з'єднання. Усього прочитано 8 000 000 байтів</code></pre>
+
+<h3>Same thing on macOS (abridged from expected_output.txt, block 6)</h3>
+<pre><code>   0.100 с  сервер > клієнт: [.], ack 393217, win 242, length 0  ← вікно: 242 × 64 = 15488 байтів вільно
+   5.238 с     ... 1 сегм. з даними (15488 байтів) ...           <span class="c">← sender waited 5 s (window &lt; MSS)</span>
+   5.238 с  сервер > клієнт: [.], ack 408705, win 0, length 0    ← &lt;&lt;&lt; ВІКНО = 0
+  10.277 с  клієнт > сервер: [.], seq 408705:408706, ack 1, win 6380, length 1   ← zero-window probe №1, +5.039 с  <span class="c">(1-byte probe)</span>
+  ...
+Проби клієнта (zero-window probes): 8, інтервали, с: 5.039, 5.093, 5.084, 5.039, 5.001, 5.008, 7.136, 14.281</code></pre>
+
+<h2 id="ask">5. Things to point out or ask students</h2>
+<ul>
+<li><b>“Where are the 1.9 MB right now?”</b> Most students say “in the network” or “at the server”. Answer: 93% are still in the client's own kernel. <code>send()</code> returning ≠ delivered.</li>
+<li><b>“Why did the program freeze if nothing is broken?”</b> Because the receiver said <code>win 0</code>. TCP slows the fast sender down to the speed of the slowest <em>application</em>, not just the slowest link. That's flow control (rwnd), not congestion control (cwnd).</li>
+<li><b>“What if the ‘window open’ ACK gets lost?”</b> Deadlock. Hence the persist timer and probes. Ask them to spot the doubling in the timestamps.</li>
+<li><b>“Why does the ack number not move?”</b> Nothing new is accepted; <code>ack 127169</code> repeats with every reply.</li>
+<li><b>“Is the connection dead?”</b> No: probes are answered, so TCP keeps waiting indefinitely. Contrast with a crashed peer (no answers → retransmission timeout → error).</li>
+<li><b>Window scaling:</b> <code>win 737</code> is not 737 bytes. Multiply by 2<sup>wscale</sup> from the handshake.</li>
+<li><b>Bonus (verified in Docker):</b> if the client closes while frozen, <code>close()</code> returns immediately, but <code>ss</code> shows the socket in <code>FIN-WAIT-1</code> with <code>Send-Q 1773377</code> (data + FIN still waiting). <code>close()</code> doesn't mean delivered either.</li>
+<li><b>READ_AFTER=0 ending:</b> killing a server with unread data makes its kernel send <b>RST</b>, not FIN (visible as <code>[R.]</code>). Good link to the earlier handshake/close demo.</li>
+<li>Real-world: a slow consumer (a DB client that doesn't read results, a stuck log shipper) freezes the producer the same way.</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do if it misbehaves</h2>
+<div class="tablewrap"><table>
+<tr><th>Symptom</th><th>Cause / fix</th></tr>
+<tr><td><code>Сервер не запустився (порт 9101 зайнятий?)</code></td><td>An old server is alive or another demo uses the port. <code>lsof -nP -iTCP:9101</code>, kill it, or <code>PORT=9111</code>. (A stray listener is dangerous: the kernel completes the handshake and buffers data for a second client even without <code>accept()</code>, so the client “works” against the wrong server. I hit this once during testing; the script now checks.)</td></tr>
+<tr><td>On macOS no <code>win 0</code> for 5 s, client “unfreezes” once at 5 s</td><td>Normal macOS behaviour (sender SWS avoidance + 5-s persist timer, see §2). Explain it, or switch to Docker.</td></tr>
+<tr><td>Numbers differ from last time / from the slide</td><td>Buffer sizes depend on kernel, sysctls and autotuning. The shape (freeze, Recv-Q/Send-Q split, doubling probes) is stable. Linux: check <code>sysctl net.ipv4.tcp_rmem net.ipv4.tcp_wmem</code>.</td></tr>
+<tr><td><code>(tcpdump пропущено: потрібен root…)</code></td><td>macOS without BPF access. Use <code>./docker_demo.sh</code> or <code>CAPTURE=sudo ./run_demo.sh</code>. The freeze and <code>netstat</code> still work.</td></tr>
+<tr><td>Docker: <code>Cannot connect to the Docker daemon</code></td><td>Start Docker Desktop. First run also needs internet to build the image; build it beforehand: <code>docker build -t demo01-zero-window .</code></td></tr>
+<tr><td><code>Conflict. The container name "/demo01-zero-window" is already in use</code></td><td>A previous run is still alive: <code>docker rm -f demo01-zero-window</code> (or <code>demo01-zw</code> for the manual mode).</td></tr>
+<tr><td>Live <code>[tcpdump]</code> lines appear up to ~1 s late or after the client's lines</td><td><code>tail -f</code> on a bind-mounted file polls. Cosmetic; the explained output at the end is exact.</td></tr>
+<tr><td><code>packets dropped by kernel</code> in <code>tcpdump.log</code></td><td>Happened in early testing with full snaplen when the window reopens and 8 MB pours through. Scripts now use <code>-s 128 -B 8192</code>; 0 drops in final runs. If it happens, use a smaller <code>TOTAL</code>. The zero-window part is never affected.</td></tr>
+<tr><td>Client output: <code>!!! ЗАБЛОКОВАНО … вікно сервера = 0</code> while on macOS the window is still 15 KB</td><td>The client can't see the peer's window; the message is the usual cause. Correct it verbally on macOS.</td></tr>
+<tr><td>Wireshark calls the Linux probes “TCP keep-alive”</td><td>Same packet format (0 bytes, seq = last ACKed − 1); Wireshark guesses by shape. They are zero-window probes: they only appear after <code>win 0</code> and stop when the window opens. A good question for students.</td></tr>
+<tr><td>Want it to freeze longer / shorter</td><td><code>READ_AFTER=30</code>; <code>SNAP_AT=6</code> moves the ss/netstat snapshot.</td></tr>
+<tr><td>Ctrl+C</td><td>Safe: client prints its state, server exits quietly, script kills tcpdump and leftovers.</td></tr>
+</table></div>
+<p class="callout warn">Not covered: Windows (no tcpdump; Wireshark + Npcap would show the same, but I did not test it), and <code>nettop</code> on macOS (not tested; <code>netstat</code> is enough).</p>
+
+<h2 id="fallback">7. 1-minute fallback</h2>
+<ol>
+<li>Open <code>expected_output.txt</code>, block 1 (Docker). Scroll to <code>!!! send() ЗАБЛОКОВАНО</code>: “1.9 MB sent, only 127 KB reached the server, the rest sits in the client”.</li>
+<li>Show the <code>ss -tn</code> lines right below: Recv-Q 127168 on the server, Send-Q 1773376 on the client.</li>
+<li>Show the explained capture at the end of block 1: the <code>win 0</code> line, the five probes with 0.208 → 3.328 s doubling, and the green <code>WINDOW UPDATE</code>.</li>
+<li>Optional: open <code>capture.pcap</code> in Wireshark with the display filter <code>tcp.analysis.zero_window || tcp.analysis.zero_window_probe || tcp.analysis.keep_alive || tcp.analysis.window_update</code>. Checked with tshark 4.x: on the Linux capture Wireshark labels the server's lines “TCP Zero Window segment” and the window reopening “TCP window update”, but it labels the Linux probes <b>“TCP keep-alive segment”</b> (a 0-byte segment with an old seq number looks exactly like a keep-alive). On a macOS capture the 1-byte probes are labelled “TCP Zero Window Probe”.</li>
+</ol>
+
+</main>
+</body>
+</html>

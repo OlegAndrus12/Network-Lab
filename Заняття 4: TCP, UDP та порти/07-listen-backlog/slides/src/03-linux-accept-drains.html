@@ -1,0 +1,27 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Linux (Docker) — AUTO=1 ./run_docker.sh   ·   сервер починає accept()</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,Monaco,'DejaVu Sans Mono',monospace;}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:12px;white-space:pre}
+pre{padding:20px 24px 24px;white-space:pre;font:inherit}
+.k{color:#1e1e1e;background:#ffd75f;border-radius:2px;box-shadow:0 0 0 2px #ffd75f;font-weight:bold}
+.g{color:#7ee787}.r{color:#ff7b72}.c{color:#79c0ff}.a{color:#8b949e;font-style:italic}.m{color:#6e7681}
+ .win{font-size:16px}</style></head><body><div class="win">
+<div class="bar"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">Linux (Docker) — AUTO=1 ./run_docker.sh   ·   сервер починає accept()</span></div>
+<pre><span class="m">=== 3. Сервер викликає accept(): черга спорожнюється (чекаю 10 с) ===</span>
+[21:01:36.2] <span class="c">Починаю accept()</span>
+[21:01:36.2] accept() №1: 127.0.0.1:53436  повідомлення: <span class="g">клієнт #1</span>   <span class="a">← дані надіслано ще до accept()</span>
+[21:01:36.2] accept() №2: 127.0.0.1:53440  повідомлення: <span class="g">клієнт #2</span>
+[21:01:36.2] accept() №3: 127.0.0.1:53442  повідомлення: <span class="g">клієнт #3</span>
+[21:01:36.5] клієнт #4 (порт 53446): connect() <span class="g">нарешті завершився</span> (<span class="k">чекав 3.1 с</span>)
+[21:01:36.5] accept() №4: 127.0.0.1:53446  повідомлення: клієнт #4   <span class="a">← увійшов з наступним SYN</span>
+[21:01:36.7] клієнт #5 (порт 53452): connect() <span class="g">нарешті завершився</span> (<span class="k">чекав 3.1 с</span>)
+[21:01:36.7] accept() №5: 127.0.0.1:53452  повідомлення: клієнт #5
+
+<span class="m">=== 4. Черга після accept() ===</span>
+<span class="c">$ ss -ltn &#x27;sport = :9107&#x27;</span>      <span class="m"># LISTEN: Recv-Q = черга accept, Send-Q = backlog</span>
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN <span class="k">0</span>      <span class="k">2</span>          127.0.0.1:9107      0.0.0.0:*    <span class="a">← черга порожня, backlog той самий</span></pre></div></body></html>

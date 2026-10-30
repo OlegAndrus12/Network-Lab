@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="t">01-zero-window — сервер почав читати (10-та секунда)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./docker_demo.sh</span>
+<span class="cut">…</span>
+... send() чекає вже 8 с, надіслано 1 900 544 байтів
+<span class="sv">[сервер] Прокинувся, починаю recv()</span>
+<span class="b">>>> send() знову працює після 9.5 с: вікно відкрилось (у сервера звільнилось місце)</span>
+<span class="sv">[сервер] прочитано 1 074 880 байтів</span>
+надіслано 2 097 152 байтів
+<span class="cut">…</span>
+З'єднання закрито, усього надіслано 8 000 000 байтів
+<span class="sv">[сервер] Клієнт закрив з'єднання. Усього прочитано 8 000 000 байтів</span>
+<span class="cut">…</span>
+<span class="hdr">=== Пояснений вивід (capture.txt; для Wireshark: capture.pcap) ===</span>
+<span class="cut">…</span>
+   6.713 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0    <span class="c">← відповідь на пробу: досі win 0</span>
+  10.105 с  сервер > клієнт: [.], ack 127169, <span class="g">win 523</span>, length 0  <span class="c">← <<< WINDOW UPDATE: вікно знову відкрите,</span>
+                                                         <span class="c">  вільно 66944 байтів</span>
+                                    <span class="c">↑ ack той самий: нових даних немає, змінилось лише вікно</span>
+                                    <span class="c">  (523 × 128 = 66944 байтів)</span>
+  10.105 с     ... 2 сегм. з даними (66944 байтів) ...</pre></div><script>var w=document.querySelector(".win");w.style.minWidth="0";document.title=w.offsetWidth+"x"+w.offsetHeight;w.style.minWidth="";</script></body></html>

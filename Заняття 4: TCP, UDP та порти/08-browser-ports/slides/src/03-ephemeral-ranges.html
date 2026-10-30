@@ -1,0 +1,17 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Діапазон ефемерних портів: macOS і Linux (Docker)</span></div>
+<pre><span class="m"># macOS 15</span>
+<span class="p">$</span> <span class="cmd">sysctl net.inet.ip.portrange.first net.inet.ip.portrange.last</span>
+net.inet.ip.portrange.first: <span class="num">49152</span>
+net.inet.ip.portrange.last: <span class="num">65535</span>
+
+<span class="m"># Linux (python:3.12-slim у Docker)</span>
+<span class="p">$</span> <span class="cmd">cat /proc/sys/net/ipv4/ip_local_port_range</span>
+<span class="num">32768</span>	<span class="num">60999</span>
+
+<span class="p">$</span> <span class="cmd">ss -tunp</span>
+<span class="h">Netid State Local Address:Port  Peer Address:Port Process</span>               <span class="m">(Recv-Q, Send-Q прибрано)</span>
+<span class="udp">udp</span>   ESTAB  172.17.0.6:<span class="eph">56215</span>      1.1.1.1:<span class="p443">443</span>  users:(("python3",pid=354,fd=4))
+<span class="tcp">tcp</span>   ESTAB  172.17.0.6:<span class="eph">43386</span>      1.1.1.1:<span class="p443">443</span>  users:(("python3",pid=354,fd=3))
+<span class="m">       ↑ udp ESTAB = connect() лише запам’ятав адресу; з’єднання в UDP немає</span></pre>
+</div></body></html>

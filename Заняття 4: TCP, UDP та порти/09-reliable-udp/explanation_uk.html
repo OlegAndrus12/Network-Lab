@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Демо 9: надійний UDP</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1e1f22; --muted: #5d6068; --card: #ffffff; --line: #e2e0da;
+  --code-bg: #f2f0ea; --accent: #2457c5; --ok: #1f7a43; --warn: #a3520b; --bad: #b3261e;
+  --mark: #fff1b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+    --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+    --mark: #4a3f12;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181b; --fg: #e6e6e3; --muted: #a2a5ad; --card: #1f2024; --line: #33353b;
+  --code-bg: #24262b; --accent: #8fb0ff; --ok: #6fcf97; --warn: #f0b36a; --bad: #ff8a80;
+  --mark: #4a3f12;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font: 0.8rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 12px;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.note { color: var(--muted); font-size: 0.92rem; }
+.hl { background: var(--mark); border-radius: 3px; }
+.ann { color: var(--ok); }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.box.warn { border-left: 4px solid var(--warn); }
+.box.key { border-left: 4px solid var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0 12px; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+.tw { overflow-x: auto; }
+nav ol { padding-left: 20px; margin: 8px 0; }
+nav li { margin: 2px 0; }
+svg text { fill: var(--fg); font: 12px ui-monospace, Menlo, monospace; }
+svg .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Демо 9. Надійність поверх UDP: маленький TCP власноруч</h1>
+<p class="sub">Тема 4 (TCP, UDP та порти). Шпаргалка для лектора. Тека <code>09-reliable-udp/</code>, порти 9109/udp і 9119/tcp, імена Docker <code>demo09-*</code>. Усі цифри нижче взято з реальних запусків 23.10.2026 (хост macOS 15.7, Docker 29.3.1, Linux 6.12.76-linuxkit). Повні логи лежать у <code>expected_output.txt</code>.</p>
+
+<nav class="box">
+<strong>Зміст</strong>
+<ol>
+<li><a href="#what">Що показує демо</a></li>
+<li><a href="#mech">Як це працює</a></li>
+<li><a href="#run">Як запустити</a></li>
+<li><a href="#see">Що побачать студенти (реальний вивід)</a></li>
+<li><a href="#ask">На чому наголосити, що спитати</a></li>
+<li><a href="#gotchas">Підводні камені</a></li>
+<li><a href="#fallback">План Б на 1 хвилину</a></li>
+</ol>
+</nav>
+
+<h2 id="what">1. Що показує демо</h2>
+<p>Надсилаємо <strong>100 повідомлень по 100 байтів</strong> через навмисно погану мережу. <code>tc netem</code> на loopback контейнера додає 25 мс затримки в кожен бік (RTT ≈ 50 мс), 10% втрат, 5% дублікатів і 25% перестановок. Одну й ту саму передачу запускаємо чотири рази, і щоразу додаємо поверх UDP ще одну частину TCP:</p>
+<div class="tw"><table>
+<tr><th>#</th><th>Сценарій</th><th>Що додаємо</th><th>Результат (один реальний запуск)</th></tr>
+<tr><td>1</td><td><code>naive</code></td><td>нічого: 100 × <code>sendto()</code></td><td>прийшло 97 дейтаграм: 10 загублено, 7 дублікатів, 31 не по порядку. Відправник нічого не знає.</td></tr>
+<tr><td>2</td><td><code>saw</code></td><td>номери + ACK + таймер повтору (stop-and-wait)</td><td>100/100 по порядку, але <strong>8.65 с</strong>, 24 повтори</td></tr>
+<tr><td>3</td><td><code>window</code></td><td>+ ковзне вікно на 16 пакетів, буфер перестановок у приймача</td><td>100/100 по порядку, <strong>1.67 с</strong>, приблизно в 5 разів швидше</td></tr>
+<tr><td>4</td><td><code>tcp</code></td><td>нічого: усе робить ядро</td><td>100/100 по порядку, <strong>0.10 с</strong> (до ~1.2 с, якщо загубився SYN)</td></tr>
+</table></div>
+<p><strong>Слайди:</strong> «UDP — відправив і забув» і список на слайді TCP (номери, ACK, повтори, порядок, керування потоком). Демо також відповідає на питання «якщо UDP ненадійний, як працюють QUIC, DNS, ігри й відеодзвінки?». Вони додають рівно стільки надійності, скільки їм треба, у самому застосунку.</p>
+
+<h2 id="mech">2. Як це працює</h2>
+
+<h3>Формат пакета</h3>
+<p>Кожна дейтаграма починається з 5-байтового заголовка: 1 байт типу (<code>DATA</code>=1, <code>ACK</code>=2, <code>FIN</code>=3) + 4 байти номера (<code>struct "!BI"</code> у <code>common.py</code>). DATA несе повідомлення <code>&lt;MSG-17 ----…---- END-17&gt;</code>. Префікс довжини не потрібен: UDP і так зберігає межі повідомлень (демо 06), тож одна дейтаграма — один пакет.</p>
+
+<h3>Що робить сирий UDP під netem (сценарій 1)</h3>
+<p>netem діє на кожен пакет, що виходить з <code>lo</code>. При <code>loss 10%</code> пакет просто зникає. <code>duplicate 5%</code> кладе на дріт другу копію. <code>reorder 25%</code> відправляє чверть пакетів <em>без</em> затримки 25 мс, і вони обганяють попередні. Наївний відправник шле дейтаграми з паузою 10 мс, тож пакет без затримки обганяє 2 попередні. UDP з усім цим нічого не робить. Ядро віддає те, що прийшло, у порядку надходження, а <code>sendto()</code> повернув успіх усі 100 разів.</p>
+
+<h3>Stop-and-wait (сценарій 2)</h3>
+<p>Надсилаємо один DATA і чекаємо ACK з тим самим номером. Якщо за <strong>RTO = 200 мс</strong> нічого не прийшло, надсилаємо ще раз. Приймач відповідає ACK на <em>кожен</em> DATA, <strong>навіть на дублікат</strong>, бо дублікат зазвичай означає «мій попередній ACK загубився». Застосунку кожен номер віддається лише один раз.</p>
+<svg viewBox="0 0 640 250" width="100%" role="img" aria-label="Stop-and-wait: DATA 7 загубився, через 200 мс таймер спрацював, DATA 7 повторено й підтверджено">
+  <text x="50" y="16">відправник</text>
+  <text x="490" y="16">приймач</text>
+  <line x1="80" y1="24" x2="80" y2="244" stroke="currentColor" opacity=".6"/>
+  <line x1="520" y1="24" x2="520" y2="244" stroke="currentColor" opacity=".6"/>
+  <line x1="80" y1="34" x2="520" y2="54" stroke="currentColor"/>
+  <text x="250" y="38">DATA #6</text>
+  <line x1="520" y1="58" x2="80" y2="78" stroke="currentColor"/>
+  <text x="250" y="62">ACK #6</text>
+  <line x1="80" y1="86" x2="300" y2="96" stroke="currentColor"/>
+  <text x="140" y="84">DATA #7</text>
+  <text x="306" y="100" class="muted">✗ загублено (netem)</text>
+  <line x1="66" y1="86" x2="66" y2="176" stroke="currentColor" opacity=".6"/>
+  <text x="10" y="134" class="muted">RTO</text>
+  <text x="10" y="150" class="muted">200 мс</text>
+  <line x1="80" y1="176" x2="520" y2="196" stroke="currentColor"/>
+  <text x="200" y="180">DATA #7 (повтор)</text>
+  <line x1="520" y1="200" x2="80" y2="220" stroke="currentColor"/>
+  <text x="250" y="204">ACK #7</text>
+  <text x="90" y="240" class="muted">Один пакет у польоті: максимум 1 повідомлення за RTT (50 мс), кожна втрата коштує цілий RTO.</text>
+</svg>
+<p>Відправник не може відрізнити, що загубилося: DATA чи ACK. Обидва випадки виглядають однаково, як тиша. Повтор після загубленого ACK приймач бачить як дублікат, а повтор після загубленого DATA — ні. Дублікати дає ще й сам netem (<code>duplicate 5%</code>), тож лічильники (24 повтори, 21 відкинутий дублікат) не відповідають один одному напряму. Швидкість обмежена одним повідомленням за RTT: 100 × 50 мс = 5 с плюс приблизно 20 × 200 мс таймаутів ≈ 9 с. Це збігається з виміряними 7.5–8.7 с.</p>
+
+<h3>Ковзне вікно (сценарій 3)</h3>
+<p>Дозволяємо до <strong>16 непідтверджених пакетів у польоті</strong>, у кожного свій таймер (selective repeat). Лівий край вікна <code>base</code> — найстаріший непідтверджений номер. Вікно зсувається, коли цей пакет підтверджено. Тепер приймач бачить «дірки»: #10 приходить, поки #9 ще немає. Він тримає #10… у <strong>буфері перестановок</strong> і віддає застосунку лише тоді, коли #9 закриє дірку. Звідси рядок «чекали в буфері: 75». 16 пакетів за RTT замість 1 дають тут приблизно 5×. Не 16×, бо кожна втрата все одно зупиняє вікно на 200 мс RTO.</p>
+
+<h3>Чому TCP все одно швидший (сценарій 4)</h3>
+<ul>
+<li><strong>Більші пакети:</strong> TCP пакує приблизно 14 наших повідомлень в один сегмент на 1448 байтів (ми ставимо MTU <code>lo</code> 1500, як в Ethernet). Тож йому треба доставити близько 7 сегментів, а не 100 дейтаграм.</li>
+<li><strong>Fast retransmit + SACK:</strong> TCP помічає втрату за дубльованими ACK приблизно за 1 RTT і не чекає таймера.</li>
+<li><strong>Адаптивний RTO:</strong> TCP вимірює RTT і рахує RTO з нього (мінімум 200 мс у Linux). Наш RTO — фіксована здогадка.</li>
+<li><strong>Але:</strong> загублений SYN коштує цілий початковий RTO, 1 с. Ми бачили 1.15–1.18 с у 2 з 5 запусків. Надійність — не те саме, що мала затримка (див. демо 04).</li>
+</ul>
+<p>У нашій іграшці немає керування перевантаженням і керування потоком. Вона спокійно закине 16 пакетів у перевантажену мережу. Саме це робить саморобний протокол небезпечним у справжньому інтернеті, і саме тому QUIC реалізує керування перевантаженням TCP заново поверх UDP.</p>
+
+<h2 id="run">3. Як запустити</h2>
+<p>netem є лише в Linux, тому <code>run_demo.sh</code> будує маленький образ і запускає все в одному контейнері з <code>--cap-add NET_ADMIN</code>.</p>
+<pre><code>cd ~/Projects/sandbox/ports/09-reliable-udp
+./run_demo.sh                          # усе: naive saw window tcp  (~15 с)
+./run_demo.sh naive window             # лише вибрані
+LOSS=20% ./run_demo.sh saw window      # більше втрат: різниця між saw і window росте
+DELAY=25ms DUP=0% REORDER=0% ./run_demo.sh naive   # лише втрати
+NO_DOCKER=1 ./run_demo.sh              # macOS без netem: нічого не губиться (база для порівняння)</code></pre>
+<p>Вручну, у двох терміналах (студенти бачать обидві сторони):</p>
+<pre><code>./run_demo.sh shell                    # контейнер у фоні, netem уже ввімкнено
+docker exec -it demo09-reliable-udp python3 receiver.py reliable      # Т1
+docker exec -it demo09-reliable-udp python3 sender.py window          # Т2
+docker exec -it demo09-reliable-udp tcpdump -i lo -n -tttt 'udp port 9109'   # Т3, за бажанням
+./run_demo.sh stop</code></pre>
+
+<div class="tw"><table>
+<tr><th>Файл</th><th>Призначення</th></tr>
+<tr><td><code>sender.py</code></td><td><code>naive | saw | window | tcp</code>; <code>--count</code> (100), <code>--size</code> (100), <code>--rto</code> (0.2 с), <code>--window</code> (16), <code>--gap</code> (naive, 10 мс), <code>--log</code></td></tr>
+<tr><td><code>receiver.py</code></td><td><code>naive | reliable | tcp</code>; <code>--count</code>, <code>--idle</code> (naive: 1 с тиші = кінець), <code>--log</code></td></tr>
+<tr><td><code>common.py</code></td><td>порти, формат заголовка й повідомлення, короткі списки номерів</td></tr>
+<tr><td><code>run_demo.sh</code>, <code>Dockerfile</code></td><td>будує образ, вмикає netem (<code>LOSS DELAY DUP REORDER</code>), запускає сценарії; <code>shell</code>/<code>stop</code> для ручного режиму</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>реальний вивід: Docker з netem, macOS без netem, розкид часу за кількома запусками</td></tr>
+</table></div>
+
+<h2 id="see">4. Що побачать студенти (реальний вивід)</h2>
+<p class="note">З <code>expected_output.txt</code>, розділ A. Зелені примітки додано тут, скрипти їх не друкують. Числа щоразу інші.</p>
+
+<h3>1. Сирий UDP</h3>
+<pre><code>Надіслано 100 дейтаграм. Що з них дійшло — відправник не знає   <span class="ann">← sendto() успішний 100 разів</span>
+Порядок надходження (97 дейтаграм; * дублікат, &lt; не по порядку):
+    2   1&lt;    4    5    6    7   10   8&lt;   9&lt;  10*   13  11&lt;  12&lt;   16  14&lt;  15&lt;   18  17&lt;   19  19*
+   ...                                                    <span class="ann">← 3 немає; 10 прийшов двічі</span>
+<span class="hl">Загублено:       10</span>  [3, 33, 39, 51, 54, 57, 65, 68, 75, 95]
+<span class="hl">Дублікати:        7</span>  [10, 19, 27, 31, 49, 62, 98]
+<span class="hl">Не по порядку:   31</span>  [1, 8-9, 11-12, 14-15, ...]
+Застосунок отримав би 97 повідомлень замість 100; помилок ОС — жодної   <span class="ann">← 97 ≠ 100, і ніхто не поскаржився</span></code></pre>
+
+<h3>2. Stop-and-wait</h3>
+<pre><code>Stop-and-wait: надсилаємо пакет, чекаємо ACK до 200 мс, інакше повтор
+  повтор #5   (таймаут 200 мс без ACK)
+  повтор #7   (таймаут 200 мс без ACK)
+  повтор #7   (таймаут 200 мс без ACK)                    <span class="ann">← загубився двічі поспіль</span>
+  ...
+<span class="hl">Готово: 100 повідомлень, 10000 байтів за 8.65 с (1.1 КБ/с)</span>
+Відправлено дейтаграм DATA: 124 (з них повторів: 24)
+--- приймач
+  #7   дублікат -&gt; відкинули (ACK ще раз)                 <span class="ann">← DATA дійшов, загубився ACK</span>
+ACK надіслано: 121; дублікатів відкинуто: 21; чекали в буфері: 0   <span class="ann">← один у польоті: порядок не ламається</span>
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+
+<h3>3. Ковзне вікно</h3>
+<pre><code>  повтор #9   (таймаут; вікно стоїть на #9)                <span class="ann">← вікно стоїть, доки #9 не підтверджено</span>
+  повтор #16  (таймаут; вікно стоїть на #9)
+<span class="hl">Готово: 100 повідомлень, 10000 байтів за 1.67 с (5.8 КБ/с)</span>   <span class="ann">← ~5× швидше за stop-and-wait</span>
+Відправлено дейтаграм DATA: 125 (з них повторів: 25)
+--- приймач
+  #10  прийшов раніше за #9 -&gt; у буфер, чекаємо #9      <span class="ann">← дірка: тримаємо, не віддаємо</span>
+  #11  прийшов раніше за #9 -&gt; у буфер, чекаємо #9
+ACK надіслано: 119; дублікатів відкинуто: 19; <span class="hl">чекали в буфері: 75</span>
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+
+<h3>4. TCP</h3>
+<pre><code><span class="hl">Готово: 100 повідомлень, 10000 байтів за 0.10 с (93.8 КБ/с)</span>
+Повтори, порядок, дублікати: усе це зробило ядро (TCP), застосунок не бачив нічого
+Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</code></pre>
+<p class="note">Розкид за кількома запусками з тим самим netem: stop-and-wait 7.5–8.7 с, вікно 1.5–1.9 с, TCP 0.10–1.18 с.</p>
+
+<h2 id="ask">5. На чому наголосити, що спитати</h2>
+<ul>
+<li><strong>Перед сценарієм 1 спитайте:</strong> «10% втрат. Скільки зі 100 дійде і чи поверне <code>sendto()</code> помилку?» Потім покажіть на «помилок ОС — жодної».</li>
+<li>«Навіщо приймач шле ACK на дублікат, який сам же викидає?» Бо дублікат зазвичай означає, що загубився ACK. Без свіжого ACK відправник повторюватиме вічно.</li>
+<li>«Що загубилося: DATA чи ACK?» Відправник не знає, він бачить лише тишу. Приймач знає: повтор, який він уже бачив, означає, що загубився ACK. (Обережно з арифметикою на лічильниках: <code>duplicate 5%</code> у netem теж дає дублікати.)</li>
+<li>«Як вибрати RTO?» Замалий — зайві повтори (хибні дублікати). Завеликий — довгі зупинки. TCP постійно вимірює RTT (SRTT/RTTVAR, RFC 6298). Реальний запуск з <code>--rto 0.03</code> (менше за RTT): 86 повторів, 66 зайвих дублікатів, 186 дейтаграм DATA на 100 повідомлень. Передача закінчилась швидше (4.75 с), але лише ціною майже подвоєного трафіку. У спільній мережі саме так протокол створює перевантаження.</li>
+<li>«Чому вікно не в 16 разів швидше?» Кожна втрата все одно коштує 200 мс таймера, і вікно не може проїхати повз дірку. Саме тому в TCP додали fast retransmit і SACK.</li>
+<li>«Чого бракує порівняно зі справжнім TCP?» Керування перевантаженням (ми б залили зайнятий канал), керування потоком (розмір буфера приймача), адаптивного RTO, встановлення з'єднання, контрольної суми нашого заголовка (в UDP вона є, але в IPv4 необов'язкова).</li>
+<li>«То хто так робить у житті?» QUIC/HTTP/3 (усе вищезгадане + керування перевантаженням, у просторі користувача), DNS (лише таймер повтору), ігри й VoIP (номери, щоб викидати застарілі дані, без повторів: демо 04), TFTP (буквально stop-and-wait).</li>
+</ul>
+
+<h2 id="gotchas">6. Підводні камені</h2>
+<div class="box warn">
+<ul>
+<li><strong>Docker не запущено / немає інтернету для першої збірки:</strong> зберіть образ до заняття (один раз <code>./run_demo.sh naive</code>). Інакше — розділ 7.</li>
+<li><strong><code>RTNETLINK answers: Operation not permitted</code>:</strong> контейнеру бракує <code>--cap-add NET_ADMIN</code>. <code>run_demo.sh</code> його додає. Якщо запускаєте <code>docker run</code> вручну, додайте самі.</li>
+<li><strong><code>Conflict. The container name ... is already in use</code>:</strong> <code>./run_demo.sh stop</code> або <code>docker rm -f demo09-reliable-udp demo09-reliable-udp-run</code>.</li>
+<li><strong>У naive 0 «не по порядку»:</strong> можливо з <code>REORDER=0%</code> або якщо збільшити <code>--gap</code> понад 25 мс (тоді ніхто не встигне обігнати). Беріть значення за замовчуванням.</li>
+<li><strong>Вікно ненабагато швидше за stop-and-wait:</strong> буває при дуже великих втратах (<code>LOSS=40%</code>), коли кожен пакет чекає таймерів. Зі значеннями за замовчуванням співвідношення було 4.4–5.2× у трьох записаних повних запусках.</li>
+<li><strong>TCP зайняв ~1.2 с:</strong> загубився SYN (або SYN-ACK), і Linux чекав початковий RTO в 1 с. Зробіть із цього урок: запустіть <code>./run_demo.sh tcp</code> 3–4 рази й порівняйте.</li>
+<li><strong><code>NO_DOCKER=1</code> на macOS не показує втрат:</strong> так і має бути. Це база, яка доводить, що код працює. Втрати дає netem, а не код.</li>
+<li><strong>Версія Python:</strong> перевірено на macOS <code>/usr/bin/python3</code> 3.9.6 і Python 3.12 у Docker. Сторонніх пакетів немає.</li>
+</ul>
+</div>
+
+<h2 id="fallback">7. План Б на 1 хвилину</h2>
+<div class="box key">
+<p>Якщо нічого не запускається, відкрийте <code>expected_output.txt</code> і покажіть по черзі:</p>
+<ol>
+<li>Сценарій 1: <code>Загублено: 10 … Дублікати: 7 … Не по порядку: 31</code> і <code>помилок ОС — жодної</code>. Сирий UDP у поганій мережі.</li>
+<li>Сценарій 2: <code>8.65 с</code>, <code>повторів: 24</code>, <code>100 з 100 … ✓</code>. Надійно, але повільно.</li>
+<li>Сценарій 3: <code>1.67 с</code>, <code>чекали в буфері: 75</code>. Вікно дає швидкість, буфер повертає порядок.</li>
+<li>Сценарій 4: <code>0.10 с</code>. TCP робить усе це (і більше) у ядрі — у цьому й суть слайда про TCP.</li>
+</ol>
+</div>
+
+</main>
+</body>
+</html>

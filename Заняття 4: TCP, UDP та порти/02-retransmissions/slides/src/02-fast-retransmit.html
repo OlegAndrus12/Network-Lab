@@ -1,0 +1,24 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} html,body{margin:0;background:#1e1e1e}
+body{font:16px/1.5 Menlo,"DejaVu Sans Mono",monospace;color:#d4d4d4;display:inline-block}
+.win{background:#1e1e1e;border-radius:10px;overflow:hidden;display:inline-block}
+.bar{background:#323233;padding:9px 14px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:13px}
+.d{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:10px}
+pre{margin:0;padding:24px;font:inherit;white-space:pre}
+.p{color:#6a9955}.c{color:#dcdcaa}.h{color:#569cd6}.g{color:#6fd28e;font-weight:bold}
+.r{color:#ff6b6b;font-weight:bold}.y{color:#e8b64a;font-weight:bold}.v{color:#d39af0;font-weight:bold}
+.a{color:#8a8a8a}.cut{color:#6a6a6a}
+table{border-collapse:collapse;margin:0 24px 24px;font-size:15px}
+th{background:#e8e8e8;color:#222;text-align:left;font-weight:normal;padding:4px 10px;border-right:1px solid #c8c8c8}
+td{padding:2px 10px;white-space:nowrap}
+tr.n td{background:#e7e6ff;color:#12272e}
+tr.b td{background:#12272e;background:#000;color:#ff5f5f}
+tr.k td{background:#1e1e1e;color:#6a6a6a;text-align:left}
+td.note{background:#1e1e1e!important;color:#9a9a9a!important;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;font-size:15px}
+td.num{text-align:right}
+.cap{padding:14px 24px 10px;color:#9a9a9a;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;font-size:15px}
+.hl{background:#5a1a1a;color:#fff;border-radius:3px;padding:0 3px;font-weight:bold}
+.hlg{background:#1d4a2a;color:#fff;border-radius:3px;padding:0 3px;font-weight:bold}
+</style></head>
+<body><div class="win"><div class="bar"><span class="d" style="background:#ff5f56"></span><span class="d" style="background:#ffbd2e"></span><span class="d" style="background:#27c93f"></span><span class="t">$ tshark -r sample_sack.pcap --disable-protocol http -Y &#x27;frame.number &lt;= 27&#x27;   (вибрані рядки)</span></div><div class='cap'>tshark 4.6.9, текстовий вивід; кольори як у Wireshark (правило «Bad TCP»). Поля Win/TSval/TSecr прибрано для ширини.</div><table><tr><th>No.</th><th>Time</th><th>Info</th><th style='background:#1e1e1e;border:0'></th></tr><tr class='b'><td class='num'>7</td><td>0.020994</td><td>[TCP Previous segment not captured] 9102 → 52956 [ACK] Seq=1655 Ack=87 Len=1448</td><td class='note'>← діра: байти 207–1654 загубились</td></tr><tr class='k'><td>…</td><td></td><td></td><td class='note'></td></tr><tr class='b'><td class='num'>12</td><td>0.021006</td><td>[TCP Previous segment not captured] 9102 → 52956 [ACK] Seq=10343 Ack=87 Len=1448</td><td class='note'>← друга діра</td></tr><tr class='k'><td>…</td><td></td><td></td><td class='note'></td></tr><tr class='n'><td class='num'>14</td><td>0.026956</td><td>52956 → 9102 [ACK] Seq=87 Ack=207 Len=0</td><td class='note'>← «чекаю байт 207»</td></tr><tr class='b'><td class='num'>15</td><td>0.026976</td><td>[TCP Dup ACK 14#1] 52956 → 9102 [ACK] Seq=87 Ack=207 Len=0 SLE=1655 SRE=3103</td><td class='note'>← той самий Ack=207 + SACK</td></tr><tr class='b'><td class='num'>16</td><td>0.026982</td><td>[TCP Dup ACK 14#2] 52956 → 9102 [ACK] Seq=87 Ack=207 Len=0 SLE=1655 SRE=4551</td><td class='note'></td></tr><tr class='b'><td class='num'>17</td><td>0.026988</td><td>[TCP Dup ACK 14#3] 52956 → 9102 [ACK] Seq=87 Ack=207 Len=0 SLE=1655 SRE=5999</td><td class='note'>← третій дубль</td></tr><tr class='b'><td class='num'>18</td><td>0.026993</td><td>[TCP Dup ACK 14#4] 52956 → 9102 [ACK] Seq=87 Ack=207 Len=0 SLE=1655 SRE=7447</td><td class='note'></td></tr><tr class='k'><td>…</td><td></td><td></td><td class='note'></td></tr><tr class='b'><td class='num'>21</td><td>0.027001</td><td>[TCP Dup ACK 14#7] 52956 → 9102 [ACK] Seq=87 Ack=207 Len=0 SLE=10343 SRE=13239 SLE=1655 SRE=8895</td><td class='note'>← SACK: 2 блоки = 2 діри</td></tr><tr class='k'><td>…</td><td></td><td></td><td class='note'></td></tr><tr class='b'><td class='num'>26</td><td>0.032940</td><td>[TCP Fast Retransmission] 9102 → 52956 [ACK] Seq=207 Ack=87 Len=1448</td><td class='note'>← повтор через 6 мс після Dup ACK #3</td></tr></table></div><script>var r=document.querySelector('.win').getBoundingClientRect();document.title=Math.ceil(r.width)+'x'+Math.ceil(r.height)</script></body></html>

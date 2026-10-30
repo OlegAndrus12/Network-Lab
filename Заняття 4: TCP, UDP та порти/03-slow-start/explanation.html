@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slow Start Live</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fcfcfb;
+  --surface: #f3f2ef;
+  --border: #dcdad4;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --accent: #2a78d6;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --grid: #e4e2dc;
+  --note-bg: #eef4fc;
+  --warn-bg: #fdf1e6;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #1a1a19; --surface: #242422; --border: #3a3936; --text: #f0efec; --text-2: #c3c2b7;
+    --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926; --grid: #2f2e2b;
+    --note-bg: #1d2a3a; --warn-bg: #36261a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1a1a19; --surface: #242422; --border: #3a3936; --text: #f0efec; --text-2: #c3c2b7;
+  --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926; --grid: #2f2e2b;
+  --note-bg: #1d2a3a; --warn-bg: #36261a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { color: var(--text); }
+.sub { color: var(--text-2); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.9em; background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.45;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; white-space: pre;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.ann { color: var(--accent); font-weight: 600; }
+.note, .warn { border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+.note { background: var(--note-bg); }
+.warn { background: var(--warn-bg); }
+nav ol { columns: 2; column-gap: 24px; padding-left: 20px; margin: 8px 0 0; }
+@media (max-width: 560px) { nav ol { columns: 1; } h1 { font-size: 1.4rem; } }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+th { color: var(--text-2); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+figure { margin: 16px 0; }
+figcaption { color: var(--text-2); font-size: 14px; margin-top: 4px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; color: var(--text-2); margin: 4px 0; }
+.legend span::before { content: ""; display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 6px; border-top: 2px solid var(--series-1); }
+.legend .lg-st::before { border-top: 2px dashed var(--series-2); }
+svg.chart { width: 100%; height: auto; display: block; background: var(--bg); }
+svg.chart .grid { stroke: var(--grid); stroke-width: 1; }
+svg.chart .axis { stroke: var(--text-2); stroke-width: 1; }
+svg.chart .tick { fill: var(--text-2); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+svg.chart .cw { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; }
+svg.chart .st { fill: none; stroke: var(--series-2); stroke-width: 2; stroke-dasharray: 6 4; }
+svg.chart .pt { fill: var(--series-1); stroke: var(--bg); stroke-width: 2; }
+svg.chart .pt:hover { r: 6; }
+svg.chart .lbl { fill: var(--text); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<main>
+<h1>Demo 3: Slow start, live</h1>
+<p class="sub">Topic 4, TCP, UDP and ports. Supports the cwnd table on the slide «Керування швидкістю». Folder <code>03-slow-start/</code>, port 9103, Docker names <code>demo03-*</code>.</p>
+
+<nav><strong>Contents</strong>
+<ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mechanism">The mechanism</a></li>
+<li><a href="#run">Running it live</a></li>
+<li><a href="#see">What students will see</a></li>
+<li><a href="#ask">Points to make and questions</a></li>
+<li><a href="#gotchas">Gotchas and recovery</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+<li><a href="#files">Files</a></li>
+</ol></nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>A server on port 9103 sends a file to a client over loopback inside a Linux container. We add 100 ms of delay with <code>tc netem</code>, so the round trip is 200 ms and every step of TCP's growth is slow enough to watch. A sampler polls <code>ss -tin</code> every 20 ms on the <em>server</em> socket, because the server is the sender and the congestion window lives on the sender. It prints one row each time cwnd changes. Students see the window go <strong>10 → 20 → 40 → 80 → 160 → 320 → 640 → 1280</strong> segments, one doubling every ~200 ms. That is the cwnd table from «Керування швидкістю», with real numbers and real timestamps.</p>
+<p>A second run (<code>--loss</code>) sends 24 MB, which is enough to see what happens after slow start. A packet loss appears, <code>ssthresh</code> gets set, retransmissions are counted, and growth switches to the slow congestion-avoidance phase. The same transfer is captured to a <code>.pcap</code>, so Wireshark's Stevens graph (Statistics → TCP Stream Graphs → Stevens) can draw the same staircase.</p>
+
+<h2 id="mechanism">2. The mechanism</h2>
+<h3>Two windows, one limit</h3>
+<p>A TCP sender may have at most <code>min(cwnd, rwnd)</code> bytes unacknowledged ("in flight"). <strong>rwnd</strong> is what the receiver advertises: how much buffer it has free. <strong>cwnd</strong> is the sender's private guess at how much the network can absorb. The receiver never sees it, and it never appears in any packet. That is why we read it from the sender's kernel with <code>ss</code>, not from the wire. Linux keeps cwnd in segments of one MSS each. Here MSS = 1448 bytes: MTU 1500 minus a 20-byte IP header, a 20-byte TCP header and 12 bytes of timestamp option.</p>
+<h3>Slow start</h3>
+<ul>
+<li><strong>Initial window = 10 segments</strong> (RFC 6928, the Linux default since 2.6.39). That is the first row of the table.</li>
+<li><strong>+1 segment of cwnd for every segment acknowledged.</strong> A full window of N segments gets acknowledged within one RTT, so cwnd becomes 2N: it doubles once per RTT. The growth is exponential. It is called "slow" only by comparison with pre-1988 TCP, which sent a whole receiver window at once.</li>
+<li>Linux counts <em>segments acknowledged</em>, not ACK packets (in the spirit of RFC 3465). This matters because the receiver ACKs far less often than once per segment. In our recorded capture there are 2173 data segments but only 380 ACKs, and the doubling is still exact.</li>
+<li><strong>ssthresh</strong> starts at "infinity". <code>ss</code> prints nothing for it until the first congestion signal. Slow start ends when (a) a loss is detected, (b) cwnd reaches ssthresh, or (c) for CUBIC, <em>HyStart</em> sees the RTT rising or an ACK train that is too long, and exits early to avoid overshooting.</li>
+</ul>
+<h3>After a loss (CUBIC, the Linux default)</h3>
+<ul>
+<li>CUBIC sets <code>ssthresh = 0.7 × cwnd</code> (β = 0.7; classic Reno halves to 0.5). During recovery Linux lowers cwnd gradually (Proportional Rate Reduction) and retransmits the missing segments (SACK/RACK). That is why the table shows odd values like 205 or 1156 while <code>retrans</code> is non-zero.</li>
+<li>After recovery cwnd ≈ ssthresh and growth is <strong>congestion avoidance</strong>: a cubic function of time since the loss. In our run that was about +10 to +20 segments per RTT (×1.01), against ×2 in slow start.</li>
+<li>Loss is detected roughly one RTT after it happens, because the sender learns of it from duplicate or SACK ACKs. Meanwhile slow start keeps doubling, so cwnd <em>overshoots</em>. That overshoot is the burst of losses you see.</li>
+</ul>
+<h3>Why netem on <code>lo</code> delays both directions, so the RTT is 200 ms, not 100 ms</h3>
+<p><code>tc qdisc add dev lo root netem delay 100ms</code> attaches netem as lo's <em>egress</em> qdisc. On a physical NIC, egress means "leaving this host", so it delays only one direction. On loopback, <em>every</em> packet is transmitted by the lo device and then looped back as a received packet. Both the server's data segments and the client's ACKs go through lo's transmit path, so each one waits 100 ms. RTT = 100 + 100 = 200 ms. The real output agrees in three independent places:</p>
+<ul>
+<li>the client prints <code>рукостискання зайняло 202 мс</code> (the handshake took 202 ms: SYN → SYN-ACK is one round trip);</li>
+<li><code>ss</code> reports <code>rtt:201.9…202.5</code> ms, plus about 2 ms of processing;</li>
+<li>in the pcap the SYN-ACK is 100.9 ms after the SYN, and the final ACK is 101.0 ms after the SYN-ACK.</li>
+</ul>
+<p>tcpdump on lo sees each packet once, when lo transmits it, i.e. <em>after</em> the netem delay. The pcap timestamps therefore already include the delay.</p>
+<h3>Tweaks we apply, and why (each one tested with and without)</h3>
+<div class="tablewrap"><table>
+<tr><th>Tweak</th><th>Why</th><th>What happens without it (real runs)</th></tr>
+<tr><td>lo MTU 65536 → <strong>1500</strong></td><td>Ethernet-sized segments, MSS 1448, and enough segments for 8 clean doublings in 3 MB.</td><td>MSS becomes 32768: Linux caps the segment size at half of the largest window the peer has advertised. 3 MB is then only ~100 segments. For the first ~0.6–1 s cwnd shows 10 but only 2 segments are in flight, because the receive window is the limit. Then you get 16 → 32 → 64 and the transfer is over. Section 4 of expected_output.txt.</td></tr>
+<tr><td><code>tcp_rmem</code> default 128 KB → <strong>4 MB</strong> (container namespace only, via <code>docker run --sysctl</code>)</td><td>The receiver's buffer autotuning grows only once per RTT. With a small start it caps in-flight data before cwnd does.</td><td>cwnd still rises, by ×1.36–×1.96 per RTT, but <code>unacked</code> is stuck at 56 → 146 → 167 → 173 while cwnd shows 136 → 331 → 498. A nice side lesson: cwnd is a <em>permission</em>, not the actual rate. Section 3.</td></tr>
+<tr><td>TSO/GSO off on lo (<code>ethtool -K lo tso off gso off</code>)</td><td>Otherwise the stack passes 64 KB "super-packets" through lo, and tcpdump/Wireshark show huge lengths instead of 1448-byte segments.</td><td>The cwnd table still works; only the capture looks unrealistic.</td></tr>
+<tr><td>netem <code>limit 10000</code></td><td>netem's own queue (default 1000 packets) should never be the bottleneck.</td><td>Not needed for the 3 MB run. Kept as a safety margin.</td></tr>
+</table></div>
+<p><strong>CUBIC is fine for this demo.</strong> In slow start CUBIC behaves exactly like Reno: +1 per ACKed segment. Its cubic curve only applies after the first loss. With a constant netem delay, HyStart normally does not fire (counter 0/0 in all recorded runs). In one exploratory run it did fire, at RTT 238 ms, when the CPU was busy. No congestion-control change is needed.</p>
+<h3>Where the loss in <code>--loss</code> comes from (honest version)</h3>
+<p>The loss is <em>not</em> random, and netem does not inject it. netem releases a whole window of delayed packets at the same instant. On loopback they all land in the per-CPU receive backlog queue (<code>net.core.netdev_max_backlog</code>, default 1000 packets). Once a window exceeds roughly 1000 to 2000 segments, the backlog overflows. This works like a router's buffer overflowing, which is a real congestion loss. The script prints both counters, and in every recorded run they matched exactly: <code>TcpRetransSegs 247</code> = <code>softnet backlog drops 247</code> (another run: 1196 = 1196). The exact moment and the ssthresh value vary from run to run (we saw 1477, 1737, 2293 and 2907), so <strong>don't promise students a specific number</strong> for this part.</p>
+<h3>macOS: what differs</h3>
+<ul>
+<li>macOS has no <code>ss</code> and no unprivileged per-socket cwnd view. <code>netstat -an -p tcp</code>, <code>lsof -nP -iTCP:9103</code> and <code>nettop -m tcp</code> show sockets, states, bytes and RTT, but not cwnd. Tools that do show it (dtrace, <code>netstat -s</code> aggregates) need root or SIP changes, and we did not use them.</li>
+<li>macOS also uses CUBIC (<code>net.inet.tcp.use_newreno: 0</code>, <code>cubic_sockets: 78</code>), so the principle is the same.</li>
+<li>Delay on macOS would need <code>dnctl</code>/<code>pfctl</code> (dummynet), which requires sudo. Not tested.</li>
+<li>Without delay, a run on the Mac host finishes 200 MB in 0.04 s (real run): the loopback RTT is microseconds, and slow start is over in under a millisecond. This makes a good 10-second contrast. Then switch to Docker.</li>
+</ul>
+
+<h2 id="run">3. Running it live</h2>
+<h3>Before class (once, about 1 minute)</h3>
+<pre><code>cd ~/Projects/sandbox/ports/03-slow-start
+docker info &gt; /dev/null &amp;&amp; echo "Docker OK"   # Docker Desktop must be running
+./run_demo.sh                                  # first run builds image demo03-slowstart (~30 s)</code></pre>
+<h3>Option A: one command (macOS or Linux, both go through Docker)</h3>
+<pre><code>./run_demo.sh            # clean slow start: 3 MB, delay 100 ms, MTU 1500. Takes ~3 s
+./run_demo.sh --loss     # 24 MB: slow start, then loss, ssthresh, congestion avoidance. ~6 s</code></pre>
+<p>The table prints row by row as it is sampled (one row per RTT). It is followed by the client summary, the kernel counters, the per-RTT segment counts taken from the pcap, and the location of <code>capture.pcap</code>. Each run overwrites <code>cwnd_table.txt</code> and <code>capture.pcap</code>; the reference copies in <code>recorded/</code> are never touched. Other flags: <code>--delay 50</code>, <code>--size-mb N</code>, and for comparison <code>--mtu default</code> and <code>--default-rmem</code>.</p>
+<h3>Option B: by hand with <code>watch</code> (closest to the slide's command), 4 terminals</h3>
+<pre><code># Terminal 0: start the lab container and configure lo (delay, MTU, offloads)
+docker run -d --rm --cap-add NET_ADMIN --sysctl net.ipv4.tcp_rmem="4096 4194304 6291456" \
+  --name demo03-live -v "$PWD":/demo -w /demo demo03-slowstart sleep infinity
+docker exec demo03-live ./setup_net.sh 100 1500
+
+# Terminal 1: server, serves any number of clients, 16 MB each
+docker exec -it demo03-live python3 server.py --size-mb 16 --clients 0
+
+# Terminal 2: the raw kernel view from the slide (note -n, see Gotchas)
+docker exec -it demo03-live watch -n 0.2 "ss -tin '( sport = :9103 )'"
+
+# Terminal 3: the clean table (optional, prints one row per change)
+docker exec -it demo03-live python3 sampler.py
+
+# Terminal 4: start the download; repeat as often as you like
+docker exec -it demo03-live python3 client.py
+
+# afterwards
+docker rm -f demo03-live</code></pre>
+<p>In the <code>watch</code> pane, point at <code>cwnd:</code>, <code>rtt:</code>, <code>unacked:</code>, and <code>retrans:</code> (that last one appears only after a loss). Start the sampler before the client: it waits up to 60 s for a connection and exits after the transfer. A 16 MB transfer lasts ~3 s, so the <code>watch</code> pane only shows 10 to 15 frames. Use <code>--size-mb 40</code> if you want it on screen longer.</p>
+<h3>Linux host without Docker</h3>
+<p>Don't run <code>setup_net.sh</code> on your own machine. Delay on the host's <code>lo</code> slows down <em>everything</em> on localhost (databases, IDE language servers…). If you must avoid Docker, use a network namespace instead (<code>sudo ip netns add demo03</code>, then <code>sudo ip netns exec demo03 bash</code>, then <code>ip link set lo up</code>). We did not test this here, because the host is a Mac without passwordless sudo.</p>
+<h3>Wireshark: Stevens graph (on the Mac)</h3>
+<pre><code>brew install --cask wireshark       # not installed on the test Mac, so this step is untested
+open -a Wireshark recorded/capture_default.pcap      # or capture.pcap from the last run</code></pre>
+<p>Click a <strong>data packet from port 9103</strong> (length 1448), then Statistics → TCP Stream Graphs → Stevens. If the plot is flat, you selected the ACK direction: press "Switch Direction". Each vertical step is one window of segments sent back-to-back. The steps are 200 ms apart and double in height. <code>recorded/capture_loss.pcap</code> shows the loss and the retransmissions too. The capture has headers only (snaplen 96), which is enough for every TCP graph.</p>
+
+<h2 id="see">4. What students will see (real output, Docker on macOS 15.7, kernel 6.12.76-linuxkit)</h2>
+<h3><code>./run_demo.sh</code>: the table for the slide</h3>
+<pre><code>lo: mtu 1500, qdisc netem 804b: root refcnt 2 limit 10000 delay 100ms
+алгоритм керування перевантаженням: cubic, tcp_rmem: 4096 4194304 6291456   <span class="ann">← CUBIC, big rmem</span>
+MSS = 1448 байтів; cwnd рахується в сегментах (1 сегмент = MSS)
+  t, мс   cwnd  ріст ssthresh rtt, мс  bytes_acked unacked  retrans  фаза
+      0     10              —   202.5            0       0      0/0  slow start
+    215     20 ×2.00        —   202.0        14480      20      0/0  slow start
+    428     40 ×2.00        —   202.0        43440      40      0/0  slow start
+    617     80 ×2.00        —   201.8       101360      80      0/0  slow start
+    831    160 ×2.00        —   202.3       216880     160      0/0  slow start
+   1013    320 ×2.00        —   201.9       448560     320      0/0  slow start
+   1216    640 ×2.00        —   202.0       911920     640      0/0  slow start
+   1433   1280 ×2.00        —   202.1      1838640     903      0/0  slow start</code></pre>
+<ul>
+<li><strong>cwnd</strong> doubles exactly, ×2.00, on every row. <strong>t</strong> grows by ~200 ms per row: one row per RTT. The ±20 ms jitter is the sampling period.</li>
+<li><strong>ssthresh "—"</strong>: not set yet (infinite), so this is pure slow start. <strong>retrans 0/0</strong>: nothing lost.</li>
+<li><strong>bytes_acked</strong> = 14480 = 10 × 1448 after the first RTT: the whole initial window, acknowledged.</li>
+<li><strong>unacked</strong> = cwnd: the sender uses its whole window. The last row is the exception (903 &lt; 1280), because the 3 MB file ran out. That is the application limiting the send, not TCP.</li>
+<li>The cross-check from the pcap, printed by the script, shows the same staircase on the wire: <code>t=0.000 10, 0.202 20, 0.404 40, 0.606 80, 0.808 160, 1.010 320, 1.212 640, 1.415 903</code> segments per burst.</li>
+<li>Client: <code>Отримано 3.0 МБ за 1.62 с, середня швидкість 15.5 Мбіт/с</code> (3.0 MB in 1.62 s, 15.5 Mbit/s on average). On a link with no bandwidth limit, the whole 1.6 s is slow start, i.e. waiting for round trips.</li>
+</ul>
+<figure>
+<div class="legend"><span>cwnd (segments)</span></div>
+<svg viewBox="0 0 720 360" role="img" aria-labelledby="ct cd" class="chart">
+<title id="ct">cwnd over time, real samples</title>
+<desc id="cd">Step chart of cwnd from 10 to 1280 segments over 1.5 s; ssthresh appears after the first loss.</desc>
+<line class="grid" x1="56" x2="696" y1="316.0" y2="316.0"/>
+<text class="tick" x="48" y="320.0" text-anchor="end">8</text>
+<line class="grid" x1="56" x2="696" y1="279.0" y2="279.0"/>
+<text class="tick" x="48" y="283.0" text-anchor="end">16</text>
+<line class="grid" x1="56" x2="696" y1="242.0" y2="242.0"/>
+<text class="tick" x="48" y="246.0" text-anchor="end">32</text>
+<line class="grid" x1="56" x2="696" y1="205.0" y2="205.0"/>
+<text class="tick" x="48" y="209.0" text-anchor="end">64</text>
+<line class="grid" x1="56" x2="696" y1="168.0" y2="168.0"/>
+<text class="tick" x="48" y="172.0" text-anchor="end">128</text>
+<line class="grid" x1="56" x2="696" y1="131.0" y2="131.0"/>
+<text class="tick" x="48" y="135.0" text-anchor="end">256</text>
+<line class="grid" x1="56" x2="696" y1="94.0" y2="94.0"/>
+<text class="tick" x="48" y="98.0" text-anchor="end">512</text>
+<line class="grid" x1="56" x2="696" y1="57.0" y2="57.0"/>
+<text class="tick" x="48" y="61.0" text-anchor="end">1024</text>
+<line class="grid" x1="56" x2="696" y1="20.0" y2="20.0"/>
+<text class="tick" x="48" y="24.0" text-anchor="end">2048</text>
+<text class="tick" x="56.0" y="334" text-anchor="middle">0</text>
+<text class="tick" x="264.7" y="334" text-anchor="middle">0.5</text>
+<text class="tick" x="473.5" y="334" text-anchor="middle">1</text>
+<text class="tick" x="682.2" y="334" text-anchor="middle">1.5</text>
+<line class="axis" x1="56" x2="696" y1="316.0" y2="316.0"/>
+<text class="tick" x="376.0" y="354" text-anchor="middle">time since connect, s</text>
+<text class="tick" x="14" y="168.0" text-anchor="middle" transform="rotate(-90 14 168.0)">cwnd, segments (log scale)</text>
+<path class="cw" d="M56.0,304.1 H145.8 V267.1 H234.7 V230.1 H313.6 V193.1 H402.9 V156.1 H478.9 V119.1 H563.7 V82.1 H654.3 V45.1 H671.0"/>
+<circle class="pt" cx="56.0" cy="304.1" r="4"><title>t=0 ms  cwnd=10  ssthresh=—  rtt=202.5 ms</title></circle>
+<circle class="pt" cx="145.8" cy="267.1" r="4"><title>t=215 ms  cwnd=20  ssthresh=—  rtt=202.0 ms</title></circle>
+<circle class="pt" cx="234.7" cy="230.1" r="4"><title>t=428 ms  cwnd=40  ssthresh=—  rtt=202.0 ms</title></circle>
+<circle class="pt" cx="313.6" cy="193.1" r="4"><title>t=617 ms  cwnd=80  ssthresh=—  rtt=201.8 ms</title></circle>
+<circle class="pt" cx="402.9" cy="156.1" r="4"><title>t=831 ms  cwnd=160  ssthresh=—  rtt=202.3 ms</title></circle>
+<circle class="pt" cx="478.9" cy="119.1" r="4"><title>t=1013 ms  cwnd=320  ssthresh=—  rtt=201.9 ms</title></circle>
+<circle class="pt" cx="563.7" cy="82.1" r="4"><title>t=1216 ms  cwnd=640  ssthresh=—  rtt=202.0 ms</title></circle>
+<circle class="pt" cx="654.3" cy="45.1" r="4"><title>t=1433 ms  cwnd=1280  ssthresh=—  rtt=202.1 ms</title></circle>
+</svg>
+
+<figcaption>Recorded default run on a log₂ axis: every gridline is ×2, so constant doubling per RTT appears as equal steps. Hover a point for its values.</figcaption>
+</figure>
+
+<h3><code>./run_demo.sh --loss</code>: what happens after slow start</h3>
+<pre><code>  t, мс   cwnd  ріст ssthresh rtt, мс  bytes_acked unacked  retrans  фаза
+      0     10              —   202.0            0      10      0/0  slow start
+    204     20 ×2.00        —   201.3        14480      20      0/0  slow start
+    408     40 ×2.00        —   202.1        43440      40      0/0  slow start
+    618     80 ×2.00        —   202.1       101360      80      0/0  slow start
+    822    160 ×2.00        —   201.8       216880     160      0/0  slow start
+   1025    320 ×2.00        —   201.4       448560     320      0/0  slow start
+   1224    640 ×2.00        —   201.6       911920     640      0/0  slow start
+   1427   1280 ×2.00        —   202.5      1838640    1280      0/0  slow start
+   1628   1179 ×0.92     1477   202.6      3288088    1302  156/156  втрата → повторна передача
+   1830   1156 ×0.98     1477   202.2      3456056    2255   87/243  втрата → повторна передача
+   2029    205 ×0.18     1034   201.9      5041552    1361    4/247  втрата → повторна передача
+   2228   1034 ×5.04     1034   202.1      7012280    1034    0/247  уникнення перевантаження
+   2427   1061 ×1.03     1034   202.2      8509512    1061    0/247  уникнення перевантаження
+   2628   1078 ×1.02     1034   202.3     10045840    1078    0/247  уникнення перевантаження
+   2847   1092 ×1.01     1034   202.4     11606784    1092    0/247  уникнення перевантаження
+   3036   1103 ×1.01     1034   202.8     12944736    1103    0/247  уникнення перевантаження
+   3252   1115 ×1.01     1034   202.7     14785144    1115    0/247  уникнення перевантаження
+   3449   1126 ×1.01     1034   202.8     16399664    1126    0/247  уникнення перевантаження
+   3637   1129 ×1.00     1034   202.6     16658856    1129    0/247  уникнення перевантаження
+   3668   1137 ×1.01     1034   202.3     18030112    1137    0/247  уникнення перевантаження
+   3855   1147 ×1.01     1034   202.2     19676488    1147    0/247  уникнення перевантаження
+   4058   1157 ×1.01     1034   201.5     21337344    1157    0/247  уникнення перевантаження
+   4255   1167 ×1.01     1034   201.9     23012680    1167    0/247  уникнення перевантаження
+   4449   1170 ×1.00     1034   201.9     23544096    1120    0/247  уникнення перевантаження
+   4479   1175 ×1.00     1034   201.8     24702496     320    0/247  уникнення перевантаження
+повторно передано сегментів (TcpRetransSegs):          247   <span class="ann">← retransmitted segments …</span>
+відкинуто в черзі прийому lo (softnet backlog drops):  247   <span class="ann">← … exactly the packets dropped in the receive backlog</span>
+вихід зі slow start через HyStart (train/delay):       0/0   <span class="ann">← HyStart did not fire</span></code></pre>
+<ul>
+<li>Up to 1280 the rows are identical to the clean run. At t≈1.6 s the next doubling overflows the loopback backlog. <code>retrans 156/156</code> appears and <strong>ssthresh</strong> is set for the first time (1477 ≈ 0.7 × the cwnd at detection).</li>
+<li>The "фаза" (phase) column reads "втрата → повторна передача" (loss, retransmitting) while retransmissions are outstanding. cwnd dips (Proportional Rate Reduction; the 205 is the deepest point of recovery). It then jumps to ssthresh = 1034 when recovery completes. That is the ×5.04 row: it is not slow start, recovery is just finishing.</li>
+<li>Then "уникнення перевантаження" (congestion avoidance): 1034 → 1061 → 1078 → … → 1175, about +1% per RTT, against ×2 before. This is the slide's point: exponential probing first, then cautious linear-like growth.</li>
+</ul>
+<figure>
+<div class="legend"><span>cwnd</span><span class="lg-st">ssthresh</span></div>
+<svg viewBox="0 0 720 360" role="img" aria-labelledby="ct cd" class="chart">
+<title id="ct">cwnd over time, real samples</title>
+<desc id="cd">Step chart of cwnd from 10 to 1280 segments over 4.6 s; ssthresh appears after the first loss.</desc>
+<line class="grid" x1="56" x2="696" y1="316.0" y2="316.0"/>
+<text class="tick" x="48" y="320.0" text-anchor="end">0</text>
+<line class="grid" x1="56" x2="696" y1="242.0" y2="242.0"/>
+<text class="tick" x="48" y="246.0" text-anchor="end">500</text>
+<line class="grid" x1="56" x2="696" y1="168.0" y2="168.0"/>
+<text class="tick" x="48" y="172.0" text-anchor="end">1000</text>
+<line class="grid" x1="56" x2="696" y1="94.0" y2="94.0"/>
+<text class="tick" x="48" y="98.0" text-anchor="end">1500</text>
+<line class="grid" x1="56" x2="696" y1="20.0" y2="20.0"/>
+<text class="tick" x="48" y="24.0" text-anchor="end">2000</text>
+<text class="tick" x="56.0" y="334" text-anchor="middle">0</text>
+<text class="tick" x="125.9" y="334" text-anchor="middle">0.5</text>
+<text class="tick" x="195.8" y="334" text-anchor="middle">1</text>
+<text class="tick" x="265.7" y="334" text-anchor="middle">1.5</text>
+<text class="tick" x="335.5" y="334" text-anchor="middle">2</text>
+<text class="tick" x="405.4" y="334" text-anchor="middle">2.5</text>
+<text class="tick" x="475.3" y="334" text-anchor="middle">3</text>
+<text class="tick" x="545.2" y="334" text-anchor="middle">3.5</text>
+<text class="tick" x="615.1" y="334" text-anchor="middle">4</text>
+<text class="tick" x="685.0" y="334" text-anchor="middle">4.5</text>
+<line class="axis" x1="56" x2="696" y1="316.0" y2="316.0"/>
+<text class="tick" x="376.0" y="354" text-anchor="middle">time since connect, s</text>
+<text class="tick" x="14" y="168.0" text-anchor="middle" transform="rotate(-90 14 168.0)">cwnd, segments</text>
+<path class="st" d="M283.5,97.4 H311.8 V97.4 H339.6 V163.0 H367.4 V163.0 H395.2 V163.0 H423.3 V163.0 H453.9 V163.0 H480.3 V163.0 H510.5 V163.0 H538.1 V163.0 H564.3 V163.0 H568.7 V163.0 H594.8 V163.0 H623.2 V163.0 H650.7 V163.0 H677.8 V163.0 H682.0 V163.0 H687.6"/>
+<path class="cw" d="M56.0,314.5 H84.5 V313.0 H113.0 V310.1 H142.4 V304.2 H170.9 V292.3 H199.3 V268.6 H227.1 V221.3 H255.4 V126.6 H283.5 V141.5 H311.8 V144.9 H339.6 V285.7 H367.4 V163.0 H395.2 V159.0 H423.3 V156.5 H453.9 V154.4 H480.3 V152.8 H510.5 V151.0 H538.1 V149.4 H564.3 V148.9 H568.7 V147.7 H594.8 V146.2 H623.2 V144.8 H650.7 V143.3 H677.8 V142.8 H682.0 V142.1 H687.6"/>
+<circle class="pt" cx="56.0" cy="314.5" r="4"><title>t=0 ms  cwnd=10  ssthresh=—  rtt=202.0 ms</title></circle>
+<circle class="pt" cx="84.5" cy="313.0" r="4"><title>t=204 ms  cwnd=20  ssthresh=—  rtt=201.3 ms</title></circle>
+<circle class="pt" cx="113.0" cy="310.1" r="4"><title>t=408 ms  cwnd=40  ssthresh=—  rtt=202.1 ms</title></circle>
+<circle class="pt" cx="142.4" cy="304.2" r="4"><title>t=618 ms  cwnd=80  ssthresh=—  rtt=202.1 ms</title></circle>
+<circle class="pt" cx="170.9" cy="292.3" r="4"><title>t=822 ms  cwnd=160  ssthresh=—  rtt=201.8 ms</title></circle>
+<circle class="pt" cx="199.3" cy="268.6" r="4"><title>t=1025 ms  cwnd=320  ssthresh=—  rtt=201.4 ms</title></circle>
+<circle class="pt" cx="227.1" cy="221.3" r="4"><title>t=1224 ms  cwnd=640  ssthresh=—  rtt=201.6 ms</title></circle>
+<circle class="pt" cx="255.4" cy="126.6" r="4"><title>t=1427 ms  cwnd=1280  ssthresh=—  rtt=202.5 ms</title></circle>
+<circle class="pt" cx="283.5" cy="141.5" r="4"><title>t=1628 ms  cwnd=1179  ssthresh=1477  rtt=202.6 ms</title></circle>
+<circle class="pt" cx="311.8" cy="144.9" r="4"><title>t=1830 ms  cwnd=1156  ssthresh=1477  rtt=202.2 ms</title></circle>
+<circle class="pt" cx="339.6" cy="285.7" r="4"><title>t=2029 ms  cwnd=205  ssthresh=1034  rtt=201.9 ms</title></circle>
+<circle class="pt" cx="367.4" cy="163.0" r="4"><title>t=2228 ms  cwnd=1034  ssthresh=1034  rtt=202.1 ms</title></circle>
+<circle class="pt" cx="395.2" cy="159.0" r="4"><title>t=2427 ms  cwnd=1061  ssthresh=1034  rtt=202.2 ms</title></circle>
+<circle class="pt" cx="423.3" cy="156.5" r="4"><title>t=2628 ms  cwnd=1078  ssthresh=1034  rtt=202.3 ms</title></circle>
+<circle class="pt" cx="453.9" cy="154.4" r="4"><title>t=2847 ms  cwnd=1092  ssthresh=1034  rtt=202.4 ms</title></circle>
+<circle class="pt" cx="480.3" cy="152.8" r="4"><title>t=3036 ms  cwnd=1103  ssthresh=1034  rtt=202.8 ms</title></circle>
+<circle class="pt" cx="510.5" cy="151.0" r="4"><title>t=3252 ms  cwnd=1115  ssthresh=1034  rtt=202.7 ms</title></circle>
+<circle class="pt" cx="538.1" cy="149.4" r="4"><title>t=3449 ms  cwnd=1126  ssthresh=1034  rtt=202.8 ms</title></circle>
+<circle class="pt" cx="564.3" cy="148.9" r="4"><title>t=3637 ms  cwnd=1129  ssthresh=1034  rtt=202.6 ms</title></circle>
+<circle class="pt" cx="568.7" cy="147.7" r="4"><title>t=3668 ms  cwnd=1137  ssthresh=1034  rtt=202.3 ms</title></circle>
+<circle class="pt" cx="594.8" cy="146.2" r="4"><title>t=3855 ms  cwnd=1147  ssthresh=1034  rtt=202.2 ms</title></circle>
+<circle class="pt" cx="623.2" cy="144.8" r="4"><title>t=4058 ms  cwnd=1157  ssthresh=1034  rtt=201.5 ms</title></circle>
+<circle class="pt" cx="650.7" cy="143.3" r="4"><title>t=4255 ms  cwnd=1167  ssthresh=1034  rtt=201.9 ms</title></circle>
+<circle class="pt" cx="677.8" cy="142.8" r="4"><title>t=4449 ms  cwnd=1170  ssthresh=1034  rtt=201.9 ms</title></circle>
+<circle class="pt" cx="682.0" cy="142.1" r="4"><title>t=4479 ms  cwnd=1175  ssthresh=1034  rtt=201.8 ms</title></circle>
+</svg>
+
+<figcaption>Recorded <code>--loss</code> run, linear axis: the exponential ramp, the drop after the loss, then the flat congestion-avoidance growth. ssthresh (dashed) exists only after the first loss.</figcaption>
+</figure>
+
+<h2 id="ask">5. Points to make and questions to ask</h2>
+<ul>
+<li><strong>"Why does it start at 10 and not at 1?"</strong> IW10, RFC 6928 (2013). Older textbooks show 1 or 2. Ask what difference that makes to a 15 KB web page: 10 × 1448 = 14 480 bytes fits in the very first RTT.</li>
+<li><strong>"How many RTTs to reach 1280?"</strong> log₂(1280/10) = 7. Check against the table: 7 rows × ~200 ms ≈ 1.43 s. Then ask what the same file costs on a 20 ms RTT: ~0.14 s. RTT, not bandwidth, dominates short transfers. This is why CDNs exist and why HTTP/2 and HTTP/3 reuse connections.</li>
+<li><strong>"We set 100 ms. Why does it say 200?"</strong> Both data and ACKs cross lo (see section 2).</li>
+<li><strong>"Who decides cwnd: client or server?"</strong> The sender, i.e. the server here. cwnd is not in any header, which is why Wireshark can only <em>infer</em> it from bytes in flight.</li>
+<li><strong>"Why is it called slow?"</strong> Compared with blasting the whole receive window at once, which is what caused the 1986 congestion collapse that led Van Jacobson to design these algorithms.</li>
+<li><strong>"After the loss, why 0.7 and not half?"</strong> CUBIC's β = 0.7, against Reno's 0.5. Both are AIMD-style "back off multiplicatively".</li>
+<li>Show the <code>--default-rmem</code> table (expected_output.txt, section 3): cwnd can be big while <code>unacked</code> stays small. The receive window was the limit. This links to the rwnd part of the same slide.</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do if it misbehaves</h2>
+<div class="tablewrap"><table>
+<tr><th>Symptom</th><th>Cause / fix</th></tr>
+<tr><td><code>Cannot connect to the Docker daemon</code></td><td>Docker Desktop is not running. Start it and wait for "Engine running".</td></tr>
+<tr><td>First run sits silent for ~30 s</td><td>It is building the image. Pre-build before class (section 3).</td></tr>
+<tr><td><code>ss</code> shows <code>bacula-sd</code> instead of 9103</td><td>Port 9103 is registered as <code>bacula-sd</code> in <code>/etc/services</code>. Add <code>-n</code> (<code>ss -tin</code>). The filter <code>sport = :9103</code> works either way.</td></tr>
+<tr><td>Raw <code>ss</code> shows <code>FIN-WAIT-1</code> mid-transfer</td><td>Normal. The server called <code>close()</code> after handing all the data to the kernel, and the kernel is still sending it (<code>notsent:</code>). A filter on <code>state established</code> would miss the tail, so the sampler uses <code>state connected</code>.</td></tr>
+<tr><td>Growth ×1.3–×1.8 instead of ×2.00</td><td>The receive window is limiting. Check that the header line says <code>tcp_rmem: 4096 4194304 6291456</code>. If you started a container by hand, you forgot <code>--sysctl net.ipv4.tcp_rmem=…</code>.</td></tr>
+<tr><td>MSS 32768 or 65483, few rows</td><td><code>setup_net.sh</code> didn't set MTU 1500 (or <code>--mtu default</code> was passed).</td></tr>
+<tr><td><code>RTNETLINK answers: Operation not permitted</code></td><td>Container started without <code>--cap-add NET_ADMIN</code>.</td></tr>
+<tr><td><code>Specified qdisc kind is unknown</code></td><td>The host kernel lacks <code>sch_netem</code>. Docker Desktop's kernel has it (tested). On a Linux host, run <code>sudo modprobe sch_netem</code>; on Fedora/RHEL you may need <code>kernel-modules-extra</code>. Not tested here.</td></tr>
+<tr><td>Port 9103 in use / "Conflict. The container name is already in use"</td><td>A previous container is still alive: <code>docker rm -f demo03-run demo03-live</code>.</td></tr>
+<tr><td>Loss appears in the default run, or <code>--loss</code> shows different numbers</td><td>Loss depends on the host CPU (when netem's timers fire, how fast the backlog drains). The ramp up to 1280 was identical in every recorded run (10+ runs). Beyond that, expect variation. Say so.</td></tr>
+<tr><td>Projector too narrow, <code>watch</code> output wraps unreadably</td><td>Use the sampler table (Option A). It is 100 columns wide; zoom out one step.</td></tr>
+<tr><td><code>python3 sampler.py</code> on the Mac says "ss є лише в Linux" (ss exists only on Linux)</td><td>Expected. Run it inside the container (Option A or B).</td></tr>
+</table></div>
+
+<h2 id="fallback">7. One-minute fallback</h2>
+<p>If Docker fails in class, show the recorded output. It comes from real runs on this machine.</p>
+<pre><code>cat recorded/cwnd_table_default.txt     # the 10 → 1280 table (30 s of talk)
+cat recorded/cwnd_table_loss.txt        # loss, ssthresh, congestion avoidance (30 s)
+less expected_output.txt                # full outputs incl. comparisons, ss snapshot, macOS
+open -a Wireshark recorded/capture_default.pcap   # if Wireshark is installed</code></pre>
+<p>Or scroll this page to section 4: the two charts are drawn from those same recorded samples.</p>
+
+<h2 id="files">8. Files</h2>
+<div class="tablewrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>run_demo.sh</code></td><td>One command. On the host it starts container <code>demo03-run</code>, which re-runs the script inside to configure lo, capture, serve, sample and summarise.</td></tr>
+<tr><td><code>setup_net.sh</code></td><td>Container only: MTU 1500, TSO/GSO off, <code>netem delay</code>.</td></tr>
+<tr><td><code>server.py</code> / <code>client.py</code></td><td>The sender (port 9103, <code>--size-mb</code>) and the downloader (prints MB/s).</td></tr>
+<tr><td><code>sampler.py</code></td><td>Polls <code>ss -tinH state connected '( sport = :9103 )'</code> every 20 ms and prints t, cwnd, growth, ssthresh, rtt, bytes_acked, unacked, retrans and phase.</td></tr>
+<tr><td><code>plot_cwnd.py</code></td><td>Turns a sampler table into the inline SVG used above.</td></tr>
+<tr><td><code>Dockerfile</code></td><td>python:3.12-slim plus iproute2, ethtool, tcpdump, procps (<code>watch</code>), netcat, curl.</td></tr>
+<tr><td><code>recorded/</code></td><td>Reference tables and pcaps for the fallback.</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>Full real outputs: default, <code>--loss</code>, both comparison runs, the raw <code>ss -ti</code> snapshot, and the macOS host run.</td></tr>
+</table></div>
+</main>
+</body>
+</html>

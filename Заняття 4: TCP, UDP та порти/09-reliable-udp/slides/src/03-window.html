@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css">
+<style>pre{font-size:14px} .win{flex:1 1 auto} body{width:max-content}</style></head><body>
+<div class="row">
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">відправник — ковзне вікно на 16</span></div>
+<pre><span class="p">$</span> <span class="cmd">python3 sender.py window --window 16</span>
+Ковзне вікно: до 16 пакетів без ACK одночасно, таймер 200 мс на кожен
+  <span class="w">повтор #9</span>   (таймаут; вікно стоїть на #9)
+  <span class="w">повтор #16</span>  (таймаут; вікно стоїть на #9)
+  <span class="w">повтор #21</span>  (таймаут; вікно стоїть на #9)
+  <span class="w">повтор #25</span>  (таймаут; вікно стоїть на #25)
+  <span class="cut">…</span>
+Готово: 100 повідомлень, 10000 байтів за <span class="ok">1.67 с</span> (5.8 КБ/с)
+Відправлено дейтаграм DATA: 125 (з них повторів: 25)
+Приймач підтвердив кінець (FIN)
+<span class="m">← 16 у польоті замість 1: ~5× швидше за stop-and-wait (8.65 с)</span></pre></div>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">приймач — reliable</span></div>
+<pre><span class="p">$</span> <span class="cmd">python3 receiver.py reliable</span>
+UDP-приймач (reliable) слухає 127.0.0.1:9109
+  #10  <span class="k">прийшов раніше за #9</span> -> у буфер, чекаємо #9
+  #11  <span class="k">прийшов раніше за #9</span> -> у буфер, чекаємо #9
+  #12  <span class="k">прийшов раніше за #9</span> -> у буфер, чекаємо #9
+  #13  <span class="k">прийшов раніше за #9</span> -> у буфер, чекаємо #9
+  <span class="cut">…</span>
+ACK надіслано: 119; дублікатів відкинуто: 19; <span class="k">чекали в буфері: 75</span>
+<span class="ok">Доставлено застосунку: 100 з 100, усі по порядку, без дублікатів ✓</span>
+<span class="m">← дірка на #9: решту тримаємо, поки її не закриє повтор</span></pre></div>
+</div></body></html>

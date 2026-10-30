@@ -1,0 +1,41 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Linux (Docker) — AUTO=1 ./run_docker.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,Monaco,'DejaVu Sans Mono',monospace;}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:12px;white-space:pre}
+pre{padding:20px 24px 24px;white-space:pre;font:inherit}
+.k{color:#1e1e1e;background:#ffd75f;border-radius:2px;box-shadow:0 0 0 2px #ffd75f;font-weight:bold}
+.g{color:#7ee787}.r{color:#ff7b72}.c{color:#79c0ff}.a{color:#8b949e;font-style:italic}.m{color:#6e7681}
+ .win{font-size:16px}</style></head><body><div class="win">
+<div class="bar"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">Linux (Docker) — AUTO=1 ./run_docker.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається</span></div>
+<pre><span class="c">$ AUTO=1 ./run_docker.sh</span>
+[21:01:32.6] Сервер слухає 127.0.0.1:9107, <span class="k">listen(backlog=2)</span>, PID 17
+<span class="m">…</span>
+[21:01:34.9] Звіт:
+  клієнт #1 (порт 53436): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #2 (порт 53440): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #3 (порт 53442): connect() <span class="g">завершився</span> за 0.00 с     <span class="a">← 3 = backlog + 1</span>
+  клієнт #4 (порт 53446): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+  клієнт #5 (порт 53452): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+<span class="m">…</span>
+<span class="c">$ ss -ltn &#x27;sport = :9107&#x27;</span>      <span class="m"># LISTEN: Recv-Q = черга accept, Send-Q = backlog</span>
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN <span class="k">3</span>      <span class="k">2</span>          127.0.0.1:9107      0.0.0.0:*    <span class="a">← Recv-Q = черга, Send-Q = backlog</span>
+<span class="c">$ ss -tan &#x27;( sport = :9107 or dport = :9107 )&#x27;</span>      <span class="m"># без TIME-WAIT</span>
+State    Recv-Q Send-Q Local Address:Port  Peer Address:Port
+LISTEN   3      2          127.0.0.1:9107       0.0.0.0:*
+<span class="g">ESTAB</span>    <span class="k">16</span>     0          127.0.0.1:9107     127.0.0.1:53442  <span class="a">← сервер: 16 байтів ніхто не прочитав</span>
+<span class="g">ESTAB</span>    0      0          127.0.0.1:53442    127.0.0.1:9107   <span class="a">← клієнт: «підключений»</span>
+<span class="r">SYN-SENT</span> 0      1          127.0.0.1:53452    127.0.0.1:9107   <span class="a">← не вмістився</span>
+<span class="g">ESTAB</span>    16     0          127.0.0.1:9107     127.0.0.1:53436
+<span class="r">SYN-SENT</span> 0      1          127.0.0.1:53446    127.0.0.1:9107   <span class="a">← не вмістився</span>
+<span class="g">ESTAB</span>    0      0          127.0.0.1:53440    127.0.0.1:9107
+<span class="g">ESTAB</span>    16     0          127.0.0.1:9107     127.0.0.1:53440
+<span class="g">ESTAB</span>    0      0          127.0.0.1:53436    127.0.0.1:9107
+<span class="c">$ nstat -az TcpExtListenOverflows TcpExtListenDrops TcpExtSyncookiesSent TcpExtSyncookiesRecv</span>
+<span class="m">…</span>
+TcpExtListenOverflows           <span class="r">4</span>                  0.0    <span class="a">← SYN відкинуто мовчки</span>
+TcpExtListenDrops               <span class="r">4</span>                  0.0</pre></div></body></html>

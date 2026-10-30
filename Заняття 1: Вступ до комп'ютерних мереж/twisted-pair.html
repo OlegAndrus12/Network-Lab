@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Кручена пара зсередини</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root {
+  --bg: #F2F4F6; --surface: #FFFFFF; --soft: #E8EDF1; --ink: #15202A; --muted: #56636F;
+  --line: #D3DAE0; --accent: #B25E24; --accent-soft: #F6E6DA; --accent-ink: #FFFFFF;
+  --ok: #1E8449; --bad: #C0392B; --jacket: #9DB0BF; --jacket-edge: #7D93A5; --spline: #DDE3E8;
+  --foil: #AEB8C2; --copper: #C77B30; --white-wire: #F7F7F2; --wire-edge: #8E9AA4;
+  --noise: #D9822B;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+    --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+    --ok: #3FBF72; --bad: #EF6A5B; --jacket: #3D4C59; --jacket-edge: #566878; --spline: #26303A;
+    --foil: #6F7C88; --white-wire: #ECECE6; --wire-edge: #7C8893; --noise: #E89A48;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+  --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+  --ok: #3FBF72; --bad: #EF6A5B; --jacket: #3D4C59; --jacket-edge: #566878; --spline: #26303A;
+  --foil: #6F7C88; --white-wire: #ECECE6; --wire-edge: #7C8893; --noise: #E89A48;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing: -0.01em; }
+h2 { font-size: clamp(20px, 3vw, 26px); }
+h3 { font-size: 16px; font-weight: 500; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+
+header.hero { padding-block: 40px 8px; display: grid; gap: 14px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.toc a { font: 500 13px/1 var(--body); color: var(--ink); text-decoration: none; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+section.block { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(18px, 3vw, 32px); display: grid; gap: 20px; scroll-margin-top: 16px; }
+.head { display: grid; gap: 8px; }
+.split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--soft); border-radius: 10px; }
+.seg button { font: 500 14px/1 var(--body); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 10px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn { font: 600 14px/1 var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 11px 16px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+
+svg text { font-family: var(--mono); }
+.figure { width: 100%; max-width: 100%; height: auto; display: block; }
+
+/* cross-section */
+.xs [data-part] { cursor: pointer; transition: opacity .2s; }
+.xs.focus [data-part]:not(.on) { opacity: .28; }
+.info { border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 8px; background: var(--bg); }
+.info .kicker { font: 500 12px/1 var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.specs { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; margin: 0; }
+.specs dt { color: var(--muted); } .specs dd { margin: 0; font-variant-numeric: tabular-nums; }
+.parts { display: flex; flex-wrap: wrap; gap: 6px; }
+.parts button { font: 500 13px/1 var(--body); padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.parts button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* twist demo */
+.controls { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+.controls label { font-size: 14px; display: flex; gap: 10px; align-items: center; }
+input[type=range] { accent-color: var(--accent); width: 180px; }
+.scope { width: 100%; height: 300px; display: block; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.meter { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: baseline; }
+.meter strong { font: 600 28px/1 var(--display); font-variant-numeric: tabular-nums; }
+.pill { font: 600 12px/1 var(--mono); padding: 6px 9px; border-radius: 999px; letter-spacing: .04em; }
+.pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.pill.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+
+/* pairs */
+.pairs { display: grid; gap: 10px; }
+.pair-row { display: grid; grid-template-columns: 150px minmax(0,1fr) 150px; gap: 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.pair-row.off { opacity: .45; }
+@media (max-width: 640px) { .pair-row { grid-template-columns: 1fr; gap: 8px; } }
+.pair-name { display: flex; gap: 10px; align-items: center; font-size: 14px; font-weight: 600; }
+.pair-name small { display: block; font: 500 12px/1.3 var(--mono); color: var(--muted); }
+.sw { width: 12px; height: 28px; border-radius: 3px; border: 1px solid var(--wire-edge); }
+.track { position: relative; height: 26px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+.track .d { position: absolute; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; }
+.track .d.r { animation: goR 1.6s linear infinite; }
+.track .d.l { animation: goL 1.6s linear infinite; }
+.track.bi .d.r { margin-top: -9px; } .track.bi .d.l { margin-top: 0px; }
+.track .pw { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 14px, color-mix(in srgb, var(--noise) 35%, transparent) 14px 18px); }
+@keyframes goR { from { left: -12px; } to { left: 100%; } }
+@keyframes goL { from { left: 100%; } to { left: -12px; } }
+.pair-role { font: 500 13px/1.3 var(--mono); color: var(--muted); text-align: right; }
+@media (max-width: 640px) { .pair-role { text-align: left; } }
+.ends { display: flex; justify-content: space-between; font: 500 12px/1 var(--mono); color: var(--muted); padding-inline: 164px; }
+@media (max-width: 640px) { .ends { padding-inline: 0; } }
+
+/* pinout */
+.plugs { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+.plug { display: grid; gap: 8px; justify-items: center; width: min(100%, 300px); }
+.plug figcaption { font: 500 13px/1.3 var(--mono); color: var(--muted); text-align: center; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; font-size: 14px; margin: 0; padding: 0; list-style: none; }
+.legend li { display: flex; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+.legend b { font-family: var(--mono); width: 18px; }
+.note { font-size: 14px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); max-width: none; }
+
+/* quiz */
+.quiz { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 20px; }
+.slots, .palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; max-width: 520px; }
+.slot, .chip { height: 64px; border-radius: 6px; border: 1px dashed var(--wire-edge); background: var(--bg); position: relative; cursor: pointer; padding: 0; }
+.slot span { position: absolute; bottom: -20px; left: 0; right: 0; text-align: center; font: 500 12px/1 var(--mono); color: var(--muted); }
+.slot.filled, .chip { border-style: solid; }
+.slot.ok { outline: 3px solid var(--ok); outline-offset: 1px; }
+.slot.bad { outline: 3px solid var(--bad); outline-offset: 1px; }
+.chip:disabled { opacity: .15; cursor: default; }
+.quiz .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+#quizMsg { font-weight: 600; }
+
+/* crimp */
+.steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.steps button { font: 500 13px/1 var(--mono); width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.steps button[aria-current="step"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.steps button.done { color: var(--accent); border-color: var(--accent); }
+.crimp-text { display: grid; gap: 10px; min-height: 150px; }
+.crimp-nav { display: flex; gap: 10px; }
+.tip { font-size: 14px; color: var(--muted); }
+.tip b { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .track .d { animation: none !important; left: 45%; }
+  .led { animation: none !important; }
+}
+.led { animation: blink 2.4s infinite; }
+@keyframes blink { 0%, 12% { opacity: 1; } 13%, 100% { opacity: .15; } }
+footer { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="st-orange" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="10" height="10" fill="var(--white-wire)"/><rect width="4" height="10" fill="#E8772E"/></pattern>
+    <pattern id="st-green" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="10" height="10" fill="var(--white-wire)"/><rect width="4" height="10" fill="#2E9E4F"/></pattern>
+    <pattern id="st-blue" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="10" height="10" fill="var(--white-wire)"/><rect width="4" height="10" fill="#2F6FD0"/></pattern>
+    <pattern id="st-brown" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="10" height="10" fill="var(--white-wire)"/><rect width="4" height="10" fill="#8A5A36"/></pattern>
+    <pattern id="braid" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="var(--jacket)"/><rect width="3" height="8" fill="var(--copper)" opacity=".75"/><rect width="8" height="3" fill="var(--copper)" opacity=".45"/></pattern>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="eyebrow">Тема 1 · Фізичне середовище</span>
+    <h1>Кручена пара зсередини</h1>
+    <p class="muted">Що всередині звичайного мережевого кабелю, навіщо дроти скручують, чому пар саме чотири і як правильно обтиснути конектор RJ45. Усе на сторінці можна клікати.</p>
+    <nav class="toc" aria-label="Розділи">
+      <a href="#rozriz">Розріз кабелю</a>
+      <a href="#skrutka">Навіщо скручувати</a>
+      <a href="#pary">Навіщо 4 пари</a>
+      <a href="#pinout">Розпіновка</a>
+      <a href="#obtysk">Обтискання</a>
+    </nav>
+  </header>
+
+  <!-- 1. Cross-section -->
+  <section class="block" id="rozriz">
+    <div class="head">
+      <span class="eyebrow">01 · Розріз</span>
+      <h2>Що всередині кабелю</h2>
+      <p class="muted">Оберіть категорію кабелю і натисніть на будь-яку частину розрізу.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Категорія кабелю" id="catSeg">
+      <button type="button" data-cat="cat5e" aria-pressed="true">Cat5e U/UTP</button>
+      <button type="button" data-cat="cat6" aria-pressed="false">Cat6 U/UTP</button>
+      <button type="button" data-cat="cat6a" aria-pressed="false">Cat6a S/FTP</button>
+    </div>
+    <div class="split">
+      <svg class="figure xs" id="xs" viewBox="0 0 400 400" role="img" aria-label="Поперечний переріз кабелю"></svg>
+      <div style="display:grid; gap:14px">
+        <div class="info" id="info" aria-live="polite"></div>
+        <div class="parts" id="partBtns" aria-label="Частини кабелю"></div>
+        <dl class="specs" id="specs"></dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Twisting -->
+  <section class="block" id="skrutka">
+    <div class="head">
+      <span class="eyebrow">02 · Диференційний сигнал</span>
+      <h2>Навіщо дроти скручують</h2>
+      <p class="muted">Кожна пара несе один сигнал у двох дзеркальних копіях: на одному дроті «+», на іншому «−». Приймач віднімає одне від одного. Завада, яка однаково потрапила на обидва дроти, при відніманні зникає. Скрутка якраз і робить заваду однаковою: дроти по черзі опиняються ближче до джерела.</p>
+    </div>
+    <svg class="figure" id="twistSvg" viewBox="0 0 600 90" aria-hidden="true"></svg>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Тип проводки">
+        <button type="button" id="twOn" aria-pressed="true">Скручена пара</button>
+        <button type="button" id="twOff" aria-pressed="false">Паралельні дроти</button>
+      </div>
+      <label for="noise">Сила завади <input type="range" id="noise" min="0" max="2" step="0.05" value="1.2"></label>
+    </div>
+    <canvas class="scope" id="scope" aria-label="Осцилограма сигналів на дротах і на приймачі"></canvas>
+    <div class="meter" aria-live="polite">
+      <span><strong id="errN">0</strong> <span class="muted">помилкових бітів із <span id="errM">0</span> на екрані</span></span>
+      <span class="pill ok" id="errPill">ЗВ'ЯЗОК ЧИСТИЙ</span>
+    </div>
+    <p class="tip">Спробуйте «Паралельні дроти» і збільшіть заваду: ближчий до джерела дріт ловить більше шуму, і віднімання вже не рятує. Ще одна деталь: <b>кожна з чотирьох пар скручена з власним кроком</b>, щоб пари не наводили завади одна на одну.</p>
+  </section>
+
+  <!-- 3. Pairs -->
+  <section class="block" id="pary">
+    <div class="head">
+      <span class="eyebrow">03 · Пари в роботі</span>
+      <h2>Чому пар саме чотири</h2>
+      <p class="muted">Чотирипарний кабель прийшов з офісної телефонної проводки. Fast Ethernet обходився двома парами, а гігабіт уже використовує всі чотири. Тому старий кабель із двома парами на 1 Гбіт/с не заведеться.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Стандарт" id="modeSeg">
+      <button type="button" data-mode="100" aria-pressed="true">100 Мбіт/с</button>
+      <button type="button" data-mode="1000" aria-pressed="false">1 Гбіт/с</button>
+      <button type="button" data-mode="10g" aria-pressed="false">10 Гбіт/с</button>
+      <button type="button" data-mode="poe" aria-pressed="false">PoE</button>
+    </div>
+    <div class="ends" aria-hidden="true"><span>комп'ютер</span><span>комутатор</span></div>
+    <div class="pairs" id="pairs"></div>
+    <p id="modeText"></p>
+  </section>
+
+  <!-- 4. Pinout -->
+  <section class="block" id="pinout">
+    <div class="head">
+      <span class="eyebrow">04 · Розпіновка RJ45</span>
+      <h2>У якому порядку класти жили</h2>
+      <p class="muted">Є два стандарти порядку жил: T568A і T568B. В Україні й більшості офісів використовують T568B. Головне правило: однаковий стандарт на обох кінцях кабелю.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Стандарт розпіновки" id="stdSeg">
+        <button type="button" data-std="B" aria-pressed="true">T568B</button>
+        <button type="button" data-std="A" aria-pressed="false">T568A</button>
+      </div>
+      <div class="seg" role="group" aria-label="Тип кабелю" id="cableSeg">
+        <button type="button" data-cable="straight" aria-pressed="true">Прямий</button>
+        <button type="button" data-cable="cross" aria-pressed="false">Кросовер</button>
+      </div>
+    </div>
+    <div class="plugs" id="plugs"></div>
+    <ul class="legend" id="legend"></ul>
+    <p class="note" id="cableNote"></p>
+
+    <div class="quiz">
+      <h3>Вправа: зберіть конектор <span id="quizStd">T568B</span></h3>
+      <p class="muted">Натискайте жили внизу в порядку контактів 1→8. Натисніть на заповнений контакт, щоб звільнити його.</p>
+      <div class="slots" id="slots"></div>
+      <div class="palette" id="palette" style="margin-top:22px"></div>
+      <div class="row">
+        <button type="button" class="btn primary" id="check">Перевірити</button>
+        <button type="button" class="btn" id="reset">Почати знову</button>
+        <span id="quizMsg" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Crimping -->
+  <section class="block" id="obtysk">
+    <div class="head">
+      <span class="eyebrow">05 · Обтискання</span>
+      <h2>Як обтиснути конектор</h2>
+      <p class="muted">Знадобляться кабель, конектор RJ45, кримпер (обтискач) і тестер.</p>
+    </div>
+    <ol class="steps" id="steps" aria-label="Кроки"></ol>
+    <div class="split">
+      <svg class="figure" id="crimpSvg" viewBox="0 0 600 240" role="img" aria-label="Ілюстрація кроку"></svg>
+      <div class="crimp-text">
+        <span class="eyebrow" id="stepNo"></span>
+        <h3 id="stepTitle" style="font-size:20px"></h3>
+        <p id="stepText"></p>
+        <p class="tip" id="stepTip"></p>
+        <div class="crimp-nav">
+          <button type="button" class="btn" id="prev">Назад</button>
+          <button type="button" class="btn primary" id="next">Далі</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Цифри наведено для типових кабелів; конкретні моделі можуть відрізнятися. Матеріал до теми «Вступ до комп'ютерних мереж».</footer>
+</div>
+
+<script>
+(() => {
+  const COL = { orange: "#E8772E", green: "#2E9E4F", blue: "#2F6FD0", brown: "#8A5A36" };
+  const NAME = { orange: "оранжев", green: "зелен", blue: "синь", brown: "коричнев" };
+  const wireFill = (w) => w.striped ? `url(#st-${w.color})` : COL[w.color];
+  const wireName = (w) => w.striped ? `біло-${NAME[w.color]}ий` : `${NAME[w.color]}ий`;
+  const W = (color, striped) => ({ color, striped, id: (striped ? "w" : "") + color });
+  const STD = {
+    B: [W("orange", 1), W("orange", 0), W("green", 1), W("blue", 0), W("blue", 1), W("green", 0), W("brown", 1), W("brown", 0)],
+    A: [W("green", 1), W("green", 0), W("orange", 1), W("blue", 0), W("blue", 1), W("orange", 0), W("brown", 1), W("brown", 0)],
+  };
+  const pinsOf = (std, color) => STD[std].map((w, i) => w.color === color ? i + 1 : 0).filter(Boolean);
+  const swatch = (w) => `<span class="sw" style="background:${w.striped ? "" : COL[w.color]};${w.striped ? `background-image:repeating-linear-gradient(35deg, ${COL[w.color]} 0 4px, var(--white-wire) 4px 9px)` : ""}"></span>`;
+
+  // ---------- 1. cross-section ----------
+  const CAT = {
+    cat5e: { R: 150, spline: false, shield: false, specs: [["Швидкість", "до 1 Гбіт/с на 100 м"], ["Частота", "до 100 МГц"], ["Жила", "24 AWG ≈ 0,51 мм"], ["Діаметр", "≈ 5–5,5 мм"], ["Екран", "немає (U/UTP)"]] },
+    cat6:  { R: 160, spline: true,  shield: false, specs: [["Швидкість", "1 Гбіт/с на 100 м, 10 Гбіт/с до ~55 м"], ["Частота", "до 250 МГц"], ["Жила", "23 AWG ≈ 0,57 мм"], ["Діаметр", "≈ 6–6,5 мм"], ["Екран", "немає (U/UTP)"]] },
+    cat6a: { R: 176, spline: false, shield: true,  specs: [["Швидкість", "10 Гбіт/с на 100 м"], ["Частота", "до 500 МГц"], ["Жила", "23 AWG ≈ 0,57 мм"], ["Діаметр", "≈ 7–8 мм"], ["Екран", "обплетення + фольга на кожній парі (S/FTP)"]] },
+  };
+  const PART = {
+    jacket: ["Оболонка", "PVC або LSZH", "Захищає пари від механічних пошкоджень і вологи. LSZH при горінні не виділяє їдкого диму, тому його вимагають у громадських будівлях."],
+    ripcord: ["Розривна нитка", "нейлон", "Потягніть за неї, і оболонка розріжеться вздовж без ризику надрізати жили."],
+    spline: ["Хрестоподібний сепаратор", "тільки Cat6", "Розводить пари подалі одна від одної і зменшує перехресні наводки між ними. Через нього Cat6 товщий і жорсткіший за Cat5e."],
+    braid: ["Загальне обплетення", "S/ у назві", "Мідна сітка навколо всіх пар. Працює, лише якщо заземлена з обох кінців через екрановані конектори й розетки."],
+    foil: ["Фольга на кожній парі", "/FTP у назві", "Екранує кожну пару окремо. Саме вона дозволяє 10 Гбіт/с на повні 100 м і роботу поруч із сильними завадами."],
+    orange: ["Оранжева пара", "", "Кожна пара скручена з власним кроком, щоб пари не «резонували» і менше наводили одна на одну."],
+    green: ["Зелена пара", "", "Разом з оранжевою це дві пари, яких досить для 100 Мбіт/с."],
+    blue: ["Синя пара", "", "Центральні контакти 4 і 5. Колись саме тут ішла телефонна лінія, тому пара посередині конектора."],
+    brown: ["Коричнева пара", "", "Зазвичай має найдовший крок скрутки. На 100 Мбіт/с не використовується, на 1 Гбіт/с працює, як усі."],
+    copper: ["Мідна жила", "суцільна або багатодротова", "Суцільна (solid) — для стаціонарної проводки в стінах, багатодротова (stranded) — для гнучких патч-кордів. Колір ізоляції кодує пару."],
+  };
+  const PAIRS = [["orange", 225], ["green", 315], ["blue", 45], ["brown", 135]];
+  let cat = "cat5e", part = null;
+  const xs = document.getElementById("xs");
+
+  function drawXS() {
+    const c = CAT[cat], cx = 200, cy = 200;
+    let s = `<circle data-part="jacket" cx="${cx}" cy="${cy}" r="${c.R}" fill="var(--jacket)" stroke="var(--jacket-edge)" stroke-width="2"/>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="${c.R - 12}" fill="var(--bg)"/>`;
+    if (c.shield) s += `<circle data-part="braid" cx="${cx}" cy="${cy}" r="${c.R - 12}" fill="none" stroke="url(#braid)" stroke-width="9"/>`;
+    if (c.spline) s += `<g data-part="spline"><rect x="${cx - 7}" y="${cy - 128}" width="14" height="256" rx="4" fill="var(--spline)" stroke="var(--wire-edge)"/><rect x="${cx - 128}" y="${cy - 7}" width="256" height="14" rx="4" fill="var(--spline)" stroke="var(--wire-edge)"/></g>`;
+    const pr = c.shield || c.spline ? 78 : 70;
+    PAIRS.forEach(([color, ang], k) => {
+      const a = ang * Math.PI / 180, px = cx + pr * Math.cos(a), py = cy + pr * Math.sin(a);
+      const t = a + Math.PI / 2 + k * 0.5, dx = 23 * Math.cos(t), dy = 23 * Math.sin(t);
+      if (c.shield) s += `<circle data-part="foil" cx="${px}" cy="${py}" r="50" fill="none" stroke="var(--foil)" stroke-width="4"/>`;
+      [[1, -1], [0, 1]].forEach(([striped, sg]) => {
+        const x = px + sg * dx, y = py + sg * dy;
+        s += `<g data-part="${color}"><circle cx="${x}" cy="${y}" r="21" fill="${striped ? `url(#st-${color})` : COL[color]}" stroke="var(--wire-edge)" stroke-width="1.5"/></g>`;
+        s += `<circle data-part="copper" cx="${x}" cy="${y}" r="10" fill="var(--copper)" stroke="#8A4F1C" stroke-width="1"/>`;
+      });
+    });
+    const ra = -62 * Math.PI / 180, rr = c.R - (c.shield ? 26 : 20);
+    s += `<circle data-part="ripcord" cx="${cx + rr * Math.cos(ra)}" cy="${cy + rr * Math.sin(ra)}" r="5" fill="var(--white-wire)" stroke="var(--wire-edge)"/>`;
+    xs.innerHTML = s;
+    xs.querySelectorAll("[data-part]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); pick(el.dataset.part); }));
+    buildPartBtns();
+    document.getElementById("specs").innerHTML = c.specs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+    pick(part && available().includes(part) ? part : null);
+  }
+  function available() {
+    const c = CAT[cat], list = ["jacket", "ripcord"];
+    if (c.spline) list.push("spline");
+    if (c.shield) list.push("braid", "foil");
+    return list.concat(["orange", "green", "blue", "brown", "copper"]);
+  }
+  function buildPartBtns() {
+    document.getElementById("partBtns").innerHTML = available().map((p) => `<button type="button" data-p="${p}" aria-pressed="false">${PART[p][0]}</button>`).join("");
+    document.querySelectorAll("#partBtns button").forEach((b) => b.addEventListener("click", () => pick(part === b.dataset.p ? null : b.dataset.p)));
+  }
+  function pick(p) {
+    part = p;
+    xs.classList.toggle("focus", !!p);
+    xs.querySelectorAll("[data-part]").forEach((el) => el.classList.toggle("on", el.dataset.part === p));
+    document.querySelectorAll("#partBtns button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.p === p));
+    const info = document.getElementById("info");
+    if (!p) {
+      info.innerHTML = `<span class="kicker">${cat.replace("cat", "Cat")}</span><h3>Натисніть на частину кабелю</h3><p class="muted">4 пари = 8 жил. У кожній парі один дріт суцільного кольору, другий білий зі смужкою того ж кольору.</p>`;
+      return;
+    }
+    let [title, sub, text] = PART[p];
+    if (COL[p]) sub = `контакти ${pinsOf("B", p).join(" і ")} у T568B`;
+    info.innerHTML = `<span class="kicker">${sub}</span><h3>${title}</h3><p>${text}</p>`;
+  }
+  xs.addEventListener("click", () => pick(null));
+  document.querySelectorAll("#catSeg button").forEach((b) => b.addEventListener("click", () => {
+    cat = b.dataset.cat;
+    document.querySelectorAll("#catSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    drawXS();
+  }));
+  drawXS();
+
+  // ---------- 2. twisting demo ----------
+  let twisted = true;
+  const noiseEl = document.getElementById("noise");
+  const twistSvg = document.getElementById("twistSvg");
+  function drawTwist() {
+    let a = "", b = "";
+    for (let x = 60; x <= 590; x += 4) {
+      const y1 = twisted ? 58 + 12 * Math.sin(x / 18) : 48;
+      const y2 = twisted ? 58 - 12 * Math.sin(x / 18) : 70;
+      a += `${x === 60 ? "M" : "L"}${x},${y1} `; b += `${x === 60 ? "M" : "L"}${x},${y2} `;
+    }
+    let zig = "M20,6 ";
+    for (let i = 1; i <= 6; i++) zig += `L${20 + (i % 2 ? 10 : -10)},${6 + i * 5} `;
+    twistSvg.innerHTML = `
+      <text x="44" y="14" font-size="12" fill="var(--noise)">джерело завад (силовий кабель, двигун, лампа)</text>
+      <path d="${zig}" fill="none" stroke="var(--noise)" stroke-width="2.5"/>
+      <path d="${a}" fill="none" stroke="#E8772E" stroke-width="5" stroke-linecap="round"/>
+      <path d="${b}" fill="none" stroke="url(#st-orange)" stroke-width="5" stroke-linecap="round"/>
+      <text x="0" y="${twisted ? 52 : 52}" font-size="12" fill="var(--muted)">+</text>
+      <text x="0" y="${twisted ? 72 : 74}" font-size="12" fill="var(--muted)">−</text>`;
+  }
+  function setTwist(on) {
+    twisted = on;
+    document.getElementById("twOn").setAttribute("aria-pressed", on);
+    document.getElementById("twOff").setAttribute("aria-pressed", !on);
+    drawTwist();
+  }
+  document.getElementById("twOn").addEventListener("click", () => setTwist(true));
+  document.getElementById("twOff").addEventListener("click", () => setTwist(false));
+  drawTwist();
+
+  const cv = document.getElementById("scope"), ctx = cv.getContext("2d");
+  const P = 46; // px per bit
+  const bit = (i) => { const h = Math.sin(i * 12.9898) * 43758.5453; return h - Math.floor(h) > 0.5 ? 1 : -1; };
+  const sig = (u) => { const i = Math.floor(u / P), f = u / P - i; if (f < 0.18) { const k = (1 - Math.cos(Math.PI * f / 0.18)) / 2; return bit(i - 1) * (1 - k) + bit(i) * k; } return bit(i); };
+  const noise = (x, t) => 0.9 * Math.sin(0.021 * x + t * 2.1) + 0.55 * Math.sin(0.093 * x - t * 3.7) + 0.4 * Math.sin(0.29 * x + t * 1.3);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  let off = 0, t = 0, last = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000 || 0); last = now;
+    if (!reduce.matches) { off += dt * 60; t += dt; }
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const css = getComputedStyle(document.documentElement);
+    const ink = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim();
+    const ok = css.getPropertyValue("--ok").trim(), bad = css.getPropertyValue("--bad").trim();
+    ctx.clearRect(0, 0, w, h);
+    const n = +noiseEl.value, k1 = 1, k2 = twisted ? 1 : 0.15;
+    const lanes = [
+      { name: "дріт «+»: сигнал + завада", f: (x) => sig(x + off) + k1 * n * 0.55 * noise(x, t), col: "#E8772E" },
+      { name: "дріт «−»: мінус сигнал + завада", f: (x) => -sig(x + off) + k2 * n * 0.55 * noise(x, t), col: css.getPropertyValue("--wire-edge").trim() },
+      { name: "приймач: («+» − «−») / 2", f: (x) => sig(x + off) + (k1 - k2) / 2 * n * 0.55 * noise(x, t), col: null },
+    ];
+    const lh = h / 3, amp = lh * 0.26;
+    ctx.font = `500 12px ${css.getPropertyValue("--mono")}`;
+    let errs = 0, total = 0;
+    lanes.forEach((ln, li) => {
+      const mid = li * lh + lh / 2 + 6;
+      ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+      ctx.fillStyle = ink; ctx.fillText(ln.name, 10, li * lh + 16);
+      if (li === 2) {
+        for (let i = Math.ceil(off / P); (i * P - off) < w; i++) {
+          const xc = i * P - off + P * 0.6; if (xc < 0 || xc > w) continue;
+          total++;
+          const v = ln.f(xc);
+          const wrong = Math.sign(v) !== bit(i);
+          if (wrong) { errs++; ctx.fillStyle = bad; ctx.globalAlpha = 0.18; ctx.fillRect(i * P - off, li * lh + 22, P, lh - 26); ctx.globalAlpha = 1; }
+        }
+      }
+      ctx.strokeStyle = ln.col || (errs ? bad : ok); ctx.lineWidth = 2; ctx.beginPath();
+      for (let x = 0; x <= w; x += 2) { const y = mid - ln.f(x) * amp; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    });
+    document.getElementById("errN").textContent = errs;
+    document.getElementById("errM").textContent = total;
+    const pill = document.getElementById("errPill");
+    pill.className = "pill " + (errs ? "bad" : "ok");
+    pill.textContent = errs ? "БІТИ СПОТВОРЕНО" : "ЗВ'ЯЗОК ЧИСТИЙ";
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- 3. pairs ----------
+  const MODES = {
+    "100":  { roles: { orange: "tx", green: "rx", blue: "off", brown: "off" }, label: { tx: "передача →", rx: "← прийом", off: "не використовується" },
+              text: "100BASE-TX: одна пара передає, друга приймає, 100 Мбіт/с у кожен бік. Синя й коричнева пари вільні. Колись по них пускали другий комп'ютер або телефон, а зараз живлення PoE." },
+    "1000": { roles: { orange: "bi", green: "bi", blue: "bi", brown: "bi" }, label: { bi: "↔ 250 Мбіт/с" },
+              text: "1000BASE-T: усі чотири пари працюють одночасно в обидва боки, по 250 Мбіт/с кожна: 4 × 250 = 1 Гбіт/с. Щоб розділити зустрічні сигнали на одному дроті, мережева карта віднімає власне «відлуння» (ехокомпенсація)." },
+    "10g":  { roles: { orange: "bi", green: "bi", blue: "bi", brown: "bi" }, label: { bi: "↔ 2,5 Гбіт/с" },
+              text: "10GBASE-T: ті самі чотири пари, але по 2,5 Гбіт/с кожна і частоти до 500 МГц. Тому потрібен Cat6a: на Cat6 вистачає лише на ~55 м." },
+    "poe":  { roles: { orange: "bip", green: "bip", blue: "bip", brown: "bip" }, label: { bip: "дані + живлення" },
+              text: "PoE (802.3bt): живлення до 90 Вт іде тими самими парами поверх даних. Так живляться камери, точки доступу Wi-Fi і IP-телефони без окремої розетки. Старіший PoE (802.3af, 15,4 Вт) обходився двома вільними парами кабелю на 100 Мбіт/с." },
+  };
+  let mode = "100";
+  function drawPairs() {
+    const m = MODES[mode];
+    const order = ["orange", "green", "blue", "brown"];
+    document.getElementById("pairs").innerHTML = order.map((c) => {
+      const r = m.roles[c], pins = pinsOf("B", c);
+      let dots = "";
+      if (r === "tx") dots = [0, 0.53, 1.06].map((d) => `<span class="d r" style="background:${COL[c]};animation-delay:-${d}s"></span>`).join("");
+      if (r === "rx") dots = [0, 0.53, 1.06].map((d) => `<span class="d l" style="background:${COL[c]};animation-delay:-${d}s"></span>`).join("");
+      if (r === "bi" || r === "bip") dots = [0, 0.8].map((d) => `<span class="d r" style="background:${COL[c]};animation-delay:-${d}s"></span><span class="d l" style="background:${COL[c]};animation-delay:-${d + 0.4}s"></span>`).join("");
+      const lbl = m.label[r];
+      return `<div class="pair-row ${r === "off" ? "off" : ""}">
+        <div class="pair-name">${swatch({ color: c, striped: 1 })}${swatch({ color: c, striped: 0 })}<span>${PART[c][0]}<small>контакти ${pins.join(", ")}</small></span></div>
+        <div class="track ${r.startsWith("bi") ? "bi" : ""}">${r === "bip" ? '<span class="pw"></span>' : ""}${dots}</div>
+        <div class="pair-role">${lbl}</div></div>`;
+    }).join("");
+    document.getElementById("modeText").textContent = m.text;
+  }
+  document.querySelectorAll("#modeSeg button").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll("#modeSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    drawPairs();
+  }));
+  drawPairs();
+
+  // ---------- 4. pinout ----------
+  let std = "B", cable = "straight";
+  function plugSVG(s, label) {
+    const wires = STD[s];
+    let g = "";
+    wires.forEach((w, i) => {
+      const x = 59 + i * 26;
+      g += `<rect x="${x - 9}" y="70" width="18" height="190" rx="4" fill="${wireFill(w)}" stroke="var(--wire-edge)" stroke-width="1.2"/>`;
+      g += `<rect x="${x - 7}" y="40" width="14" height="26" rx="1.5" fill="#D4AF37" stroke="#9C7C1C"/>`;
+      g += `<text x="${x}" y="30" font-size="14" text-anchor="middle" fill="var(--ink)">${i + 1}</text>`;
+    });
+    return `<figure class="plug" style="margin:0"><svg class="figure" viewBox="0 0 300 290" role="img" aria-label="Конектор ${label}, стандарт T568${s}">
+      <rect x="22" y="36" width="256" height="180" rx="10" fill="var(--soft)" stroke="var(--wire-edge)" stroke-width="2" opacity=".9"/>
+      ${g}
+      <rect x="60" y="200" width="180" height="70" rx="8" fill="var(--jacket)" stroke="var(--jacket-edge)"/>
+      <text x="150" y="240" font-size="13" text-anchor="middle" fill="var(--ink)">оболонка</text>
+    </svg><figcaption>${label} · T568${s}</figcaption></figure>`;
+  }
+  function drawPinout() {
+    const other = std === "B" ? "A" : "B";
+    const endB = cable === "straight" ? std : other;
+    document.getElementById("plugs").innerHTML = plugSVG(std, "Кінець 1") + plugSVG(endB, "Кінець 2");
+    document.getElementById("legend").innerHTML = STD[std].map((w, i) => `<li><b>${i + 1}</b>${swatch(w)}${wireName(w)}</li>`).join("");
+    document.getElementById("cableNote").textContent = cable === "straight"
+      ? "Прямий кабель: однаковий стандарт на обох кінцях. Ним підключають усе: комп'ютер до комутатора, роутер до модему. Конектор тримайте засувкою донизу, контактами до себе: контакт 1 ліворуч."
+      : "Кросовер: T568A на одному кінці і T568B на іншому, тобто передавальна пара одного пристрою йде на приймальну іншого. Колись ним з'єднували два комп'ютери напряму. Сучасні порти з Auto MDI-X міняють пари самі, тож кросовер майже не потрібен.";
+  }
+  document.querySelectorAll("#stdSeg button").forEach((b) => b.addEventListener("click", () => {
+    std = b.dataset.std;
+    document.querySelectorAll("#stdSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    drawPinout(); resetQuiz();
+  }));
+  document.querySelectorAll("#cableSeg button").forEach((b) => b.addEventListener("click", () => {
+    cable = b.dataset.cable;
+    document.querySelectorAll("#cableSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    drawPinout();
+  }));
+
+  // quiz
+  let slots = [], pal = [];
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function resetQuiz() {
+    slots = Array(8).fill(null);
+    pal = shuffle(STD[std].map((w, i) => ({ ...w, key: i })));
+    document.getElementById("quizStd").textContent = "T568" + std;
+    document.getElementById("quizMsg").textContent = "";
+    drawQuiz(false);
+  }
+  const chipStyle = (w) => w.striped
+    ? `background-image:repeating-linear-gradient(35deg, ${COL[w.color]} 0 5px, var(--white-wire) 5px 12px)`
+    : `background:${COL[w.color]}`;
+  function drawQuiz(checked) {
+    const right = STD[std];
+    document.getElementById("slots").innerHTML = slots.map((w, i) => {
+      const cls = w ? "slot filled" + (checked ? (w.id === right[i].id ? " ok" : " bad") : "") : "slot";
+      return `<button type="button" class="${cls}" data-i="${i}" style="${w ? chipStyle(w) : ""}" aria-label="Контакт ${i + 1}${w ? ": " + wireName(w) : ", порожній"}"><span>${i + 1}</span></button>`;
+    }).join("");
+    document.getElementById("palette").innerHTML = pal.map((w, i) => {
+      const used = slots.some((s) => s && s.key === w.key);
+      return `<button type="button" class="chip" data-k="${i}" style="${chipStyle(w)}" aria-label="${wireName(w)}" title="${wireName(w)}" ${used ? "disabled" : ""}></button>`;
+    }).join("");
+    document.querySelectorAll("#slots .slot").forEach((b) => b.addEventListener("click", () => { slots[+b.dataset.i] = null; document.getElementById("quizMsg").textContent = ""; drawQuiz(false); }));
+    document.querySelectorAll("#palette .chip").forEach((b) => b.addEventListener("click", () => {
+      const free = slots.indexOf(null); if (free < 0) return;
+      slots[free] = pal[+b.dataset.k]; document.getElementById("quizMsg").textContent = ""; drawQuiz(false);
+    }));
+  }
+  document.getElementById("check").addEventListener("click", () => {
+    const right = STD[std], msg = document.getElementById("quizMsg");
+    if (slots.includes(null)) { msg.style.color = "var(--muted)"; msg.textContent = `Заповніть усі 8 контактів (порожніх: ${slots.filter((s) => !s).length}).`; drawQuiz(false); return; }
+    const wrong = slots.filter((w, i) => w.id !== right[i].id).length;
+    drawQuiz(true);
+    msg.style.color = wrong ? "var(--bad)" : "var(--ok)";
+    msg.textContent = wrong ? `Неправильно на ${wrong} контактах. Натисніть на них, щоб переставити.` : "Правильно! Такий конектор запрацює.";
+  });
+  document.getElementById("reset").addEventListener("click", resetQuiz);
+  drawPinout(); resetQuiz();
+
+  // ---------- 5. crimping ----------
+  const STEPS = [
+    ["Зніміть оболонку", "Зріжте приблизно 3 см оболонки стриппером або потягніть за розривну нитку.", "<b>Не надріжте ізоляцію жил:</b> пошкоджена жила згодом зламається або дасть коротке замикання."],
+    ["Розкрутіть пари", "Розплетіть пари і розпряміть кожну жилу пальцями.", "<b>Скрутку зберігайте якомога ближче до оболонки:</b> розкручено має бути не більше 13 мм. Інакше саме тут почнуться наводки."],
+    ["Розкладіть за T568B", "Складіть жили рівною стрічкою в порядку: біло-оранжевий, оранжевий, біло-зелений, синій, біло-синій, зелений, біло-коричневий, коричневий.", "<b>Зелена пара «розірвана»:</b> її жили стоять на 3 і 6 контакті, а синя пара посередині."],
+    ["Обріжте рівно", "Відріжте жили рівно по одній лінії, залишивши 12–13 мм від оболонки.", "<b>Рівний зріз важливий:</b> коротша жила не дістане до контакту, і пара не працюватиме."],
+    ["Вставте в конектор", "Засувкою донизу, контактами до себе. Проштовхніть жили до самого торця: мідь має бути видно спереду конектора.", "<b>Оболонка має зайти всередину конектора</b> під фіксатор. Він тримає кабель, щоб жили не вирвало."],
+    ["Обтисніть", "Вставте конектор у кримпер і стисніть до упору. Ножі контактів прорізають ізоляцію і входять у мідь (IDC-з'єднання).", "<b>Стискайте впевнено й один раз</b>, до клацання храповика."],
+    ["Перевірте тестером", "Вставте обидва кінці в тестер: лампочки 1–8 мають загорятися по черзі й синхронно на обох блоках.", "<b>Якщо лампочка не горить, жила не контактує. Якщо горить не та, жили переплутано.</b> Відріжте конектор і обтисніть заново."],
+  ];
+  let step = 0;
+  const cs = document.getElementById("crimpSvg");
+  const wireY = (i) => 84 + i * 10;
+  function drawCrimp() {
+    const wires = STD.B;
+    let s = "";
+    const plug = (x) => `<rect x="${x}" y="62" width="150" height="104" rx="8" fill="var(--soft)" fill-opacity=".35" stroke="var(--wire-edge)" stroke-width="2"/><rect x="${x + 20}" y="166" width="70" height="16" rx="3" fill="var(--soft)" stroke="var(--wire-edge)"/>`;
+    const jacket = (x0, x1) => `<rect x="${x0}" y="70" width="${x1 - x0}" height="86" rx="10" fill="var(--jacket)" stroke="var(--jacket-edge)" stroke-width="1.5"/>`;
+    if (step === 0) {
+      s += jacket(-10, 250);
+      [["orange", 90], ["green", 106], ["blue", 122], ["brown", 138]].forEach(([c, cy], k) => {
+        const f = 10 + k * 2.5;
+        let a = "", b = "";
+        for (let x = 250; x <= 430; x += 3) { const d = 4.5 * Math.sin((x - 250) / f); a += `${x === 250 ? "M" : "L"}${x},${cy + d + (x - 250) * (k - 1.5) * 0.12} `; b += `${x === 250 ? "M" : "L"}${x},${cy - d + (x - 250) * (k - 1.5) * 0.12} `; }
+        s += `<path d="${a}" fill="none" stroke="${COL[c]}" stroke-width="6" stroke-linecap="round"/><path d="${b}" fill="none" stroke="url(#st-${c})" stroke-width="6" stroke-linecap="round"/>`;
+      });
+      s += `<path d="M250,40 L250,190" stroke="var(--accent)" stroke-dasharray="6 5" stroke-width="2"/><text x="258" y="36" font-size="13" fill="var(--accent)">≈ 3 см</text>`;
+    } else if (step === 1) {
+      s += jacket(-10, 250);
+      const order = [0, 1, 5, 2, 3, 4, 6, 7].map((i) => wires[i]);
+      order.forEach((w, i) => { s += `<path d="M250,${wireY(i) + 5} L430,${28 + i * 24}" stroke="${wireFill(w)}" stroke-width="6" stroke-linecap="round"/>`; });
+      s += `<rect x="250" y="80" width="13" height="80" fill="var(--accent)" opacity=".25"/><text x="252" y="200" font-size="13" fill="var(--accent)">скрутка до самої оболонки</text>`;
+    } else if (step === 2 || step === 3) {
+      s += jacket(-10, 250);
+      const end = step === 2 ? 430 : 330;
+      wires.forEach((w, i) => { s += `<path d="M250,${wireY(i) + 5} L${end},${wireY(i) + 5}" stroke="${wireFill(w)}" stroke-width="7"/>`; s += `<text x="${end + 10}" y="${wireY(i) + 9}" font-size="10" fill="var(--muted)">${i + 1}</text>`; });
+      if (step === 3) s += `<path d="M330,50 L330,190" stroke="var(--accent)" stroke-dasharray="6 5" stroke-width="2"/><path d="M335,70 L430,70 M335,168 L430,168" stroke="var(--muted)" stroke-dasharray="2 4"/><text x="262" y="214" font-size="13" fill="var(--accent)">12–13 мм, рівна лінія</text>`;
+    } else {
+      s += jacket(-10, 470);
+      s += plug(410);
+      wires.forEach((w, i) => { s += `<path d="M470,${wireY(i) + 5} L552,${wireY(i) + 5}" stroke="${wireFill(w)}" stroke-width="7"/>`; });
+      s += `<rect x="548" y="80" width="6" height="86" fill="var(--copper)" opacity=".9"/>`;
+      if (step === 4) s += `<text x="360" y="214" font-size="13" fill="var(--accent)">оболонка під фіксатором · мідь біля торця</text>`;
+      if (step >= 5) {
+        for (let i = 0; i < 8; i++) s += `<rect x="530" y="${wireY(i) + 1}" width="14" height="8" fill="#D4AF37" stroke="#9C7C1C"/>`;
+        if (step === 5) s += `<path d="M537,20 L537,56 M527,44 L537,56 L547,44" stroke="var(--accent)" stroke-width="3" fill="none"/><text x="420" y="16" font-size="13" fill="var(--accent)">контакти вдавлено в жили</text>`;
+      }
+      if (step === 6) {
+        for (let i = 0; i < 8; i++) {
+          const cx = 60 + i * 34;
+          s += `<circle cx="${cx}" cy="206" r="10" fill="var(--soft)" stroke="var(--wire-edge)"/><circle class="led" cx="${cx}" cy="206" r="8" fill="var(--ok)" style="animation-delay:${i * 0.3}s"/><text x="${cx}" y="232" font-size="11" text-anchor="middle" fill="var(--muted)">${i + 1}</text>`;
+        }
+      }
+    }
+    cs.innerHTML = s;
+    document.getElementById("stepNo").textContent = `Крок ${step + 1} з ${STEPS.length}`;
+    document.getElementById("stepTitle").textContent = STEPS[step][0];
+    document.getElementById("stepText").textContent = STEPS[step][1];
+    document.getElementById("stepTip").innerHTML = STEPS[step][2];
+    document.getElementById("prev").disabled = step === 0;
+    document.getElementById("next").textContent = step === STEPS.length - 1 ? "Спочатку" : "Далі";
+    document.getElementById("steps").innerHTML = STEPS.map((st, i) => `<li><button type="button" data-s="${i}" class="${i < step ? "done" : ""}" ${i === step ? 'aria-current="step"' : ""} aria-label="Крок ${i + 1}: ${st[0]}">${i + 1}</button></li>`).join("");
+    document.querySelectorAll("#steps button").forEach((b) => b.addEventListener("click", () => { step = +b.dataset.s; drawCrimp(); }));
+  }
+  document.getElementById("prev").addEventListener("click", () => { if (step > 0) { step--; drawCrimp(); } });
+  document.getElementById("next").addEventListener("click", () => { step = (step + 1) % STEPS.length; drawCrimp(); });
+  drawCrimp();
+})();
+</script>
+
+</body>
+</html>

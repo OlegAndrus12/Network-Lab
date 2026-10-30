@@ -1,0 +1,17 @@
+html,body{margin:0;background:#1e1e1e;}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,"DejaVu Sans Mono",monospace;display:inline-block;min-width:100%;box-sizing:border-box}
+.bar{background:#323233;height:34px;display:flex;align-items:center;padding:0 14px;gap:8px;color:#a8a8a8;font:13px Menlo,monospace}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.d1{background:#ff5f57}.d2{background:#febc2e}.d3{background:#28c840}
+.bar .t{margin-left:14px}
+pre{margin:0;padding:24px;font:inherit;white-space:pre}
+.p{color:#6fbf73}.cmd{color:#fff}
+.hdr{color:#7fb0ec}
+.cut{color:#777}
+.c{color:#9a9a8f;font-style:italic}
+.r{background:#b3261e;color:#fff;padding:0;border-radius:2px;box-shadow:0 0 0 2px #b3261e}
+.y{background:#e2b25c;color:#1e1e1e;padding:0;border-radius:2px;box-shadow:0 0 0 2px #e2b25c}
+.g{background:#2e7d32;color:#fff;padding:0;border-radius:2px;box-shadow:0 0 0 2px #2e7d32}
+.b{color:#fff;font-weight:bold}
+.sv{color:#c5a5e8}
+.dim{color:#8a8a8a}

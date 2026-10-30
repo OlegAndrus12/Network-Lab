@@ -1,0 +1,20 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #1e1e1e; }
+body { font: 16px/1.5 Menlo, "DejaVu Sans Mono", monospace; color: #d4d4d4; }
+.win { background: #1e1e1e; }
+.bar { background: #323233; height: 34px; display: flex; align-items: center; padding: 0 14px; position: relative; }
+.dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+.r { background: #ff5f57; } .y { background: #febc2e; } .g { background: #28c840; }
+.title { position: absolute; left: 0; right: 0; text-align: center; color: #9d9d9d; font-size: 13px; pointer-events: none; }
+pre { padding: 20px 24px 24px; font: inherit; white-space: pre; }
+.p { color: #6a9955; }            /* prompt $ */
+.cmd { color: #ffffff; font-weight: bold; }
+.h { color: #9d9d9d; }            /* header / dim */
+.m { color: #7f8c98; font-style: italic; }   /* annotation */
+.cut { color: #6b6b6b; }
+.tcp { color: #4fc1ff; font-weight: bold; }
+.udp { color: #ff9e64; font-weight: bold; }
+.p443 { color: #1e1e1e; background: #f5d547; font-weight: bold; padding: 0 2px; border-radius: 3px; }
+.eph { color: #7ee787; font-weight: bold; }
+.num { color: #f5d547; font-weight: bold; }
+.row { background: #2a3a4a; }

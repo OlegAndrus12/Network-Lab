@@ -1,0 +1,276 @@
+Реальний вивід демо «Ретрансляції TCP», 22–23.10.2026
+Хост: macOS 15 (Darwin 24.6), Docker 29.3.1. Linux у контейнері: ядро 6.12.76-linuxkit, tshark 4.4.19.
+На Mac: Wireshark/tshark 4.6.9 (/Applications/Wireshark.app). Втрати випадкові: кожен запуск дає інші числа.
+Зразки для Wireshark: sample_sack.pcap (розділи A, B) і sample_nosack.pcap (розділ C).
+./run_demo.sh пише свій результат у capture.pcap і зразки не перезаписує.
+
+################################################################################
+# A. PCAP=sample_sack.pcap ./run_demo.sh  (5% втрат, 5 мс в кожен бік, MTU 1500, SACK увімкнено)
+#    Docker Linux, tshark 4.4.19; результат збережено як sample_sack.pcap
+################################################################################
+=== 1. Налаштування lo: MTU 1500, без TSO/GSO/GRO, netem delay 5ms loss 5% ===
+qdisc netem 805a: root refcnt 2 limit 1000 delay 5ms loss 5% seed 16730390467788837527
+SACK увімкнено: 1 (1 = так, 0 = ні)
+
+=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за 5.357760 с
+  tcpdump: 1959 packets captured
+  tcpdump: 0 packets dropped by kernel
+
+=== 3. Що порахувало саме ядро (nstat, лічильники відправника і отримувача разом) ===
+  TcpExtTCPFastRetrans	66	швидкі повтори (за дубльованими ACK / SACK)
+  TcpExtTCPLossProbes	9	зонди втрати хвоста (TLP)
+  TcpExtTCPRenoRecovery	0	епізоди відновлення без SACK (Reno)
+  TcpExtTCPSackRecovery	55	епізоди відновлення з SACK
+  TcpExtTCPSynRetrans	0	з них повторів SYN / SYN-ACK
+  TcpExtTCPTimeouts	3	спрацювань таймера RTO
+  TcpRetransSegs	70	усього повторно надісланих сегментів
+
+=== 4. Що побачить Wireshark у sample_sack.pcap ===
+Усього кадрів у sample_sack.pcap: 1959
+
+ кадрів  фільтр Wireshark                                               що це
+     60  tcp.analysis.lost_segment                                      TCP Previous segment not captured: діра в seq, сегмент загубився
+    183  tcp.analysis.duplicate_ack                                     TCP Dup ACK #N: отримувач повторює той самий ack
+     39  tcp.analysis.duplicate_ack_num == 3                              з них саме третій дубль (#3)
+    223  tcp.options.sack_le                                            ACK із блоками SACK (які байти ПІСЛЯ діри вже є)
+     34  tcp.analysis.fast_retransmission                               TCP Fast Retransmission: повтор після дубльованих ACK
+      7  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission TCP Retransmission: усі інші повтори (RTO, TLP, RACK)
+      3  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission && tcp.time_delta >= 0.2   з них після паузи >= 0.2 с, тобто таймер RTO
+     23  tcp.analysis.out_of_order                                      TCP Out-Of-Order: повтор, що прийшов дуже швидко після діри
+
+--- Перша швидка ретрансляція і що їй передувало ---
+    7   0.021s (+0.000)   9102 → 52956  [TCP Previous segment not captured] 9102 → 52956 [ACK] Seq=1655 Ack=87 Win=65152 Len=1448 TSval=2558
+   14   0.027s (+0.006)  52956 → 9102   52956 → 9102 [ACK] Seq=87 Ack=207 Win=64128 Len=0 TSval=2558024390 TSecr=2558024384
+   15   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#1] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=67072 Len=0 TSval=2558024390 TSecr=25580243
+   16   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#2] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=70016 Len=0 TSval=2558024390 TSecr=25580243
+   17   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#3] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   18   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#4] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   19   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#5] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   20   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#6] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   21   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#7] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   26   0.033s (+0.000)   9102 → 52956  [TCP Fast Retransmission] 9102 → 52956 [ACK] Seq=207 Ack=87 Win=65152 Len=1448 TSval=2558024396 TSec
+
+--- Ретрансляції за таймером RTO ---
+  105   0.426s (+0.244)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=79847 Ack=87 Win=65152 Len=1448 TSval=2558024789 TSecr=2
+  110   0.738s (+0.288)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=82743 Ack=87 Win=65152 Len=1448 TSval=2558025101 TSecr=2
+  645   2.290s (+0.217)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=630087 Ack=87 Win=65152 Len=1448 TSval=2558026653 TSecr=
+
+--- Analyze → Expert Information (tshark -z expert): групи Warns і Notes ---
+Warns (86)
+          60   Sequence                TCP  Previous segment(s) not captured (common at capture start)
+          23   Sequence                TCP  This frame is a (suspected) out-of-order segment
+           3   Sequence                TCP  D-SACK Sequence
+Notes (258)
+          56   Sequence                TCP  Duplicate ACK (#1)
+          52   Sequence                TCP  Duplicate ACK (#2)
+          39   Sequence                TCP  Duplicate ACK (#3)
+          34   Sequence                TCP  This frame is a (suspected) fast retransmission
+          41   Sequence                TCP  This frame is a (suspected) retransmission
+          36   Sequence                TCP  Duplicate ACK (#4 і далі, разом)
+
+
+################################################################################
+# B. Той самий sample_sack.pcap, але на Mac:  python3 analyze.py sample_sack.pcap
+#    (tshark 4.6.9 з Wireshark.app). Евристики Wireshark змінюються між версіями:
+#    4.6.9 дає 14 «інших» повторів і 16 Out-Of-Order, а 4.4.19 у контейнері 7 і 23.
+#    Dup ACK, Fast Retransmission і RTO однакові.
+################################################################################
+Усього кадрів у sample_sack.pcap: 1959
+
+ кадрів  фільтр Wireshark                                               що це
+     60  tcp.analysis.lost_segment                                      TCP Previous segment not captured: діра в seq, сегмент загубився
+    183  tcp.analysis.duplicate_ack                                     TCP Dup ACK #N: отримувач повторює той самий ack
+     39  tcp.analysis.duplicate_ack_num == 3                              з них саме третій дубль (#3)
+    223  tcp.options.sack_le                                            ACK із блоками SACK (які байти ПІСЛЯ діри вже є)
+     34  tcp.analysis.fast_retransmission                               TCP Fast Retransmission: повтор після дубльованих ACK
+     14  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission TCP Retransmission: усі інші повтори (RTO, TLP, RACK)
+      3  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission && tcp.time_delta >= 0.2   з них після паузи >= 0.2 с, тобто таймер RTO
+     16  tcp.analysis.out_of_order                                      TCP Out-Of-Order: повтор, що прийшов дуже швидко після діри
+
+--- Перша швидка ретрансляція і що їй передувало ---
+    7   0.021s (+0.000)   9102 → 52956  [TCP Previous segment not captured] 9102 → 52956 [ACK] Seq=1655 Ack=87 Win=65152 Len=1448 TSval=2558
+   14   0.027s (+0.006)  52956 → 9102   52956 → 9102 [ACK] Seq=87 Ack=207 Win=64128 Len=0 TSval=2558024390 TSecr=2558024384
+   15   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#1] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=67072 Len=0 TSval=2558024390 TSecr=25580243
+   16   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#2] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=70016 Len=0 TSval=2558024390 TSecr=25580243
+   17   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#3] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   18   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#4] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   19   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#5] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   20   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#6] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   21   0.027s (+0.000)  52956 → 9102   [TCP Dup ACK 14#7] 52956 → 9102 [ACK] Seq=87 Ack=207 Win=72832 Len=0 TSval=2558024390 TSecr=25580243
+   26   0.033s (+0.000)   9102 → 52956  [TCP Fast Retransmission] 9102 → 52956 [ACK] Seq=207 Ack=87 Win=65152 Len=1448 TSval=2558024396 TSec
+
+--- Ретрансляції за таймером RTO ---
+  105   0.426s (+0.244)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=79847 Ack=87 Win=65152 Len=1448 TSval=2558024789 TSecr=2
+  110   0.738s (+0.288)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=82743 Ack=87 Win=65152 Len=1448 TSval=2558025101 TSecr=2
+  645   2.290s (+0.217)   9102 → 52956  [TCP Retransmission] 9102 → 52956 [ACK] Seq=630087 Ack=87 Win=65152 Len=1448 TSval=2558026653 TSecr=
+
+--- Analyze → Expert Information (tshark -z expert): групи Warns і Notes ---
+Warns (79)
+          60   Sequence                TCP  Previous segment(s) not captured (common at capture start)
+          16   Sequence                TCP  This frame is a (suspected) out-of-order segment
+           3   Sequence                TCP  D-SACK Sequence
+Notes (266)
+          56   Sequence                TCP  Duplicate ACK (#1)
+          52   Sequence                TCP  Duplicate ACK (#2)
+          39   Sequence                TCP  Duplicate ACK (#3)
+          34   Sequence                TCP  This frame is a (suspected) fast retransmission
+          48   Sequence                TCP  This frame is a (suspected) retransmission
+           1   Sequence                TCP  Ambiguous ACK following Karn's definition
+          36   Sequence                TCP  Duplicate ACK (#4 і далі, разом)
+
+################################################################################
+# C. SACK=0 PCAP=capture_nosack.pcap ./run_demo.sh   (без SACK: класичний Reno)
+#    Docker Linux; файл потім перейменовано на sample_nosack.pcap. Один запуск, числа випадкові.
+#    Частина 4: остаточна версія analyze.py повторно на тому ж pcap.
+################################################################################
+=== 1. Налаштування lo: MTU 1500, без TSO/GSO/GRO, netem delay 5ms loss 5% ===
+qdisc netem 804a: root refcnt 2 limit 1000 delay 5ms loss 5% seed 5287420720917397647
+SACK увімкнено: 0 (1 = так, 0 = ні)
+
+=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за 6.700190 с
+  tcpdump: 2409 packets captured
+  tcpdump: 0 packets dropped by kernel
+
+=== 3. Що порахувало саме ядро (nstat, лічильники відправника і отримувача разом) ===
+  TcpExtTCPFastRetrans	48	швидкі повтори (за дубльованими ACK / SACK)
+  TcpExtTCPLossProbes	0	зонди втрати хвоста (TLP)
+  TcpExtTCPRenoRecovery	38	епізоди відновлення без SACK (Reno)
+  TcpExtTCPSackRecovery	0	епізоди відновлення з SACK
+  TcpExtTCPSynRetrans	0	з них повторів SYN / SYN-ACK
+  TcpExtTCPTimeouts	12	спрацювань таймера RTO
+  TcpRetransSegs	83	усього повторно надісланих сегментів
+
+=== 4. Що побачить Wireshark у capture_nosack.pcap ===
+Усього кадрів у capture_nosack.pcap: 2409
+
+ кадрів  фільтр Wireshark                                               що це
+     56  tcp.analysis.lost_segment                                      TCP Previous segment not captured: діра в seq, сегмент загубився
+    367  tcp.analysis.duplicate_ack                                     TCP Dup ACK #N: отримувач повторює той самий ack
+     43  tcp.analysis.duplicate_ack_num == 3                              з них саме третій дубль (#3)
+      0  tcp.options.sack_le                                            ACK із блоками SACK (які байти ПІСЛЯ діри вже є)
+     39  tcp.analysis.fast_retransmission                               TCP Fast Retransmission: повтор після дубльованих ACK
+     31  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission TCP Retransmission: усі інші повтори (RTO, TLP, RACK)
+     10  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission && tcp.time_delta >= 0.2   з них після паузи >= 0.2 с, тобто таймер RTO
+      7  tcp.analysis.out_of_order                                      TCP Out-Of-Order: повтор, що прийшов дуже швидко після діри
+
+--- Перша швидка ретрансляція і що їй передувало ---
+  166   0.286s (+0.000)   9102 → 37788  [TCP Previous segment not captured] 9102 → 37788 [ACK] Seq=130527 Ack=87 Win=65152 Len=1448 TSval=25
+  187   0.292s (+0.000)  37788 → 9102   37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557612297
+  188   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#1] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  189   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#2] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  190   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#3] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  191   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#4] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  192   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#5] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  193   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#6] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  194   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#7] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=2557
+  …
+  205   0.292s (+0.000)  37788 → 9102   [TCP Dup ACK 187#18] 37788 → 9102 [ACK] Seq=87 Ack=129079 Win=66816 Len=0 TSval=2557612303 TSecr=255
+  216   0.298s (+0.000)   9102 → 37788  [TCP Fast Retransmission] 9102 → 37788 [ACK] Seq=129079 Ack=87 Win=65152 Len=1448 TSval=2557612309 T
+
+--- Ретрансляції за таймером RTO ---
+  155   0.274s (+0.211)   9102 → 37788  [TCP Retransmission] 9102 → 37788 [ACK] Seq=42199 Ack=87 Win=65152 Len=1448 TSval=2557612285 TSecr=2
+  259   0.530s (+0.214)   9102 → 37788  [TCP Retransmission] 9102 → 37788 [ACK] Seq=173967 Ack=87 Win=65152 Len=1448 TSval=2557612541 TSecr=
+ 1306   1.922s (+0.216)   9102 → 37788  [TCP Retransmission] 9102 → 37788 [ACK] Seq=971815 Ack=87 Win=65152 Len=1448 TSval=2557613933 TSecr=
+ 1486   2.690s (+0.215)   9102 → 37788  [TCP Retransmission] 9102 → 37788 [ACK] Seq=1097791 Ack=87 Win=65152 Len=1448 TSval=2557614701 TSecr
+  … і ще 6
+
+--- Analyze → Expert Information (tshark -z expert): групи Warns і Notes ---
+Warns (63)
+          56   Sequence                TCP  Previous segment(s) not captured (common at capture start)
+           7   Sequence                TCP  This frame is a (suspected) out-of-order segment
+Notes (479)
+          53   Sequence                TCP  Duplicate ACK (#1)
+          50   Sequence                TCP  Duplicate ACK (#2)
+          43   Sequence                TCP  Duplicate ACK (#3)
+          70   Sequence                TCP  This frame is a (suspected) retransmission
+          39   Sequence                TCP  This frame is a (suspected) fast retransmission
+           1   Sequence                TCP  This frame is a (suspected) spurious retransmission
+         221   Sequence                TCP  Duplicate ACK (#4 і далі, разом)
+
+################################################################################
+# D. Для порівняння: MTU=65536 ./run_demo.sh  (MTU loopback за замовчуванням)
+#    Сегменти по 65483 байти: на 2 МБ лише 73 кадри і по 1-2 події.
+################################################################################
+=== 1. Налаштування lo: MTU 65536, без TSO/GSO/GRO, netem delay 5ms loss 5% ===
+qdisc netem 804d: root refcnt 2 limit 1000 delay 5ms loss 5% seed 10243498409210221579
+SACK увімкнено: 1 (1 = так, 0 = ні)
+
+=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за 0.556278 с
+  tcpdump: 73 packets captured
+  tcpdump: 0 packets dropped by kernel
+
+=== 3. Що порахувало саме ядро (nstat, лічильники відправника і отримувача разом) ===
+  TcpExtTCPFastRetrans	2	швидкі повтори (за дубльованими ACK / SACK)
+  TcpExtTCPLossProbes	0	зонди втрати хвоста (TLP)
+  TcpExtTCPRenoRecovery	0	епізоди відновлення без SACK (Reno)
+  TcpExtTCPSackRecovery	2	епізоди відновлення з SACK
+  TcpExtTCPSynRetrans	0	з них повторів SYN / SYN-ACK
+  TcpExtTCPTimeouts	1	спрацювань таймера RTO
+  TcpRetransSegs	3	усього повторно надісланих сегментів
+
+=== 4. Що побачить Wireshark у mtu65536.pcap ===
+Усього кадрів у mtu65536.pcap: 73
+
+ кадрів  фільтр Wireshark                                               що це
+      2  tcp.analysis.lost_segment                                      TCP Previous segment not captured: діра в seq, сегмент загубився
+      8  tcp.analysis.duplicate_ack                                     TCP Dup ACK #N: отримувач повторює той самий ack
+      1  tcp.analysis.duplicate_ack_num == 3                              з них саме третій дубль (#3)
+      9  tcp.options.sack_le                                            ACK із блоками SACK (які байти ПІСЛЯ діри вже є)
+      1  tcp.analysis.fast_retransmission                               TCP Fast Retransmission: повтор після дубльованих ACK
+      1  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission TCP Retransmission: усі інші повтори (RTO, TLP, RACK)
+      1  tcp.analysis.retransmission && !tcp.analysis.fast_retransmission && tcp.time_delta >= 0.2   з них після паузи >= 0.2 с, тобто таймер RTO
+      0  tcp.analysis.out_of_order                                      TCP Out-Of-Order: повтор, що прийшов дуже швидко після діри
+
+
+################################################################################
+# E. Ручний (живий) варіант: tshark показує лише позначені Wireshark події
+#    docker exec demo02-live tshark -l -i lo -f 'tcp port 9102' -Y 'tcp.analysis.flags && !tcp.analysis.window_update'
+#    Перші 15 рядків із 375. Кадр 169: швидкий повтор seq 140663 теж загубився,
+#    тож кадр 170 через 220 мс повторює його вже за таймером RTO.
+################################################################################
+   63 0.044029936    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Previous segment not captured] 9102 → 35650 [ACK] Seq=53783 Ack=87 Win=65152 Len=1448 TSval=2557698981 TSecr=2557698975
+   97 0.049315070    127.0.0.1 → 127.0.0.1    TCP 78 [TCP Dup ACK 96#1] 35650 → 9102 [ACK] Seq=87 Ack=52335 Win=68352 Len=0 TSval=2557698987 TSecr=2557698981 SLE=53783 SRE=56679
+   98 0.051121453    127.0.0.1 → 127.0.0.1    TCP 78 [TCP Dup ACK 96#2] 35650 → 9102 [ACK] Seq=87 Ack=52335 Win=68352 Len=0 TSval=2557698987 TSecr=2557698981 SLE=53783 SRE=100119
+  108 0.055021548    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Previous segment not captured] 9102 → 35650 [ACK] Seq=114599 Ack=87 Win=65152 Len=1448 TSval=2557698992 TSecr=2557698987
+  112 0.057132571    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Fast Retransmission] 9102 → 35650 [ACK] Seq=52335 Ack=87 Win=65152 Len=1448 TSval=2557698994 TSecr=2557698987
+  113 0.061097515    127.0.0.1 → 127.0.0.1    TCP 86 [TCP Dup ACK 96#3] 35650 → 9102 [ACK] Seq=87 Ack=52335 Win=68352 Len=0 TSval=2557698998 TSecr=2557698981 SLE=114599 SRE=120391 SLE=53783 SRE=113151
+  115 0.062952634    127.0.0.1 → 127.0.0.1    TCP 78 [TCP Dup ACK 114#1] 35650 → 9102 [ACK] Seq=87 Ack=113151 Win=72704 Len=0 TSval=2557699000 TSecr=2557698994 SLE=114599 SRE=120391
+  116 0.067044265    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Out-Of-Order] 9102 → 35650 [ACK] Seq=113151 Ack=87 Win=65152 Len=1448 TSval=2557699004 TSecr=2557698998
+  131 0.068099072    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Previous segment not captured] 9102 → 35650 [ACK] Seq=142111 Ack=87 Win=65152 Len=1448 TSval=2557699006 TSecr=2557699000
+  151 0.073987210    127.0.0.1 → 127.0.0.1    TCP 78 [TCP Dup ACK 150#1] 35650 → 9102 [ACK] Seq=87 Ack=140663 Win=58240 Len=0 TSval=2557699011 TSecr=2557699006 SLE=142111 SRE=145007
+  152 0.073992375    127.0.0.1 → 127.0.0.1    TCP 78 [TCP Dup ACK 150#2] 35650 → 9102 [ACK] Seq=87 Ack=140663 Win=58240 Len=0 TSval=2557699011 TSecr=2557699006 SLE=142111 SRE=146455
+  168 0.079210645    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Previous segment not captured] 9102 → 35650 [PSH, ACK] Seq=189895 Ack=87 Win=65152 Len=1448 TSval=2557699017 TSecr=2557699011
+  169 0.079211479    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Fast Retransmission] 9102 → 35650 [ACK] Seq=140663 Ack=87 Win=65152 Len=1448 TSval=2557699017 TSecr=2557699011
+  170 0.299910999    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Retransmission] 9102 → 35650 [ACK] Seq=140663 Ack=87 Win=65152 Len=1448 TSval=2557699237 TSecr=2557699011
+  172 0.311934942    127.0.0.1 → 127.0.0.1    TCP 1514 [TCP Retransmission] 9102 → 35650 [ACK] Seq=188447 Ack=87 Win=65152 Len=1448 TSval=2557699249 TSecr=2557699243
+
+curl (прогрес, останні рядки):
+ 63 2048k   63 1300k    0     0   543k      0  0:00:03  0:00:02  0:00:01  543k
+ 84 2048k   84 1736k    0     0   511k      0  0:00:04  0:00:03  0:00:01  511k
+ 94 2048k   94 1941k    0     0   412k      0  0:00:04  0:00:04 --:--:--  412k
+100 2048k  100 2048k    0     0   396k      0  0:00:05  0:00:05 --:--:--  356k
+nstat -z TcpRetransSegs TcpExtTCPFastRetrans TcpExtTCPTimeouts:
+TcpRetransSegs                  80                 0.0
+TcpExtTCPFastRetrans            74                 0.0
+TcpExtTCPTimeouts               4                  0.0
+
+################################################################################
+# F. macOS-хост: netstat -s -p tcp на цьому Mac (без sudo) показав одні нулі:
+#      0 data packet (0 byte) retransmitted / 0 retransmit timeout / 0 SACK recovery episode
+#    Тобто без прав root лічильники TCP на macOS 15 недоступні. З sudo не перевірено.
+#    Втрати (dummynet: dnctl + pfctl) на Mac потребують sudo, тому теж не перевірено.
+################################################################################
+
+################################################################################
+# G. Для порівняння без втрат: LOSS=0% ./run_demo.sh (лише затримка 5 мс)
+################################################################################
+=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за 0.361000 с
+  tcpdump: 1727 packets captured
+  tcpdump: 0 packets dropped by kernel
+  TcpRetransSegs	0	усього повторно надісланих сегментів
+  TcpExtTCPTimeouts	0	спрацювань таймера RTO
+(тобто 5% втрат уповільнили завантаження з 0.36 с до ~5.4 с, приблизно в 15 разів)

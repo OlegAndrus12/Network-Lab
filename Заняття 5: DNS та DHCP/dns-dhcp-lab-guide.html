@@ -1,0 +1,1214 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Лабораторія DHCP і DNS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #F2F4F6; --surface: #FFFFFF; --soft: #E8EDF1; --ink: #15202A; --muted: #56636F;
+  --line: #D3DAE0; --accent: #B25E24; --accent-soft: #F6E6DA; --accent-ink: #FFFFFF;
+  --teal: #00796B; --teal-soft: #DDF0EC; --ok: #1E8449; --warn: #9A6700; --warn-soft: #FBF1D6;
+  --term-bg: #121A21; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E; --term-mark: #3A4B1F; --term-mark-ink: #E9F7C8;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+    --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+    --teal: #3FC1AE; --teal-soft: #11302B; --ok: #3FBF72; --warn: #E2B54A; --warn-soft: #33290F;
+    --term-bg: #0A0F13; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+  --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+  --teal: #3FC1AE; --teal-soft: #11302B; --ok: #3FBF72; --warn: #E2B54A; --warn-soft: #33290F;
+  --term-bg: #0A0F13; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 80px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; line-height: 1.2; text-wrap: balance; }
+h1 { font-size: clamp(26px, 4.6vw, 40px); }
+h2 { font-size: clamp(19px, 2.6vw, 24px); }
+h3 { font-size: 16px; font-weight: 500; }
+p { margin: 0; max-width: 72ch; }
+a { color: var(--accent); }
+code { font: 400 .9em/1.4 var(--mono); background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+ul, ol { margin: 0; padding-left: 20px; }
+li + li { margin-top: 4px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.page { max-width: 1180px; margin: 0 auto; display: grid; gap: 24px; }
+header.hero { padding-block: 36px 4px; display: grid; gap: 14px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border-radius: 10px; }
+.seg button { font: 500 14px/1 var(--body); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 10px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.btn { font: 600 13px/1 var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+.progress { display: flex; align-items: center; gap: 10px; font: 500 14px/1 var(--body); color: var(--muted); }
+.bar { width: 140px; height: 8px; background: var(--soft); border-radius: 99px; overflow: hidden; }
+.bar > span { display: block; height: 100%; width: 0; background: var(--ok); transition: width .25s; }
+.kbd { font: 500 12px/1 var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; background: var(--surface); }
+
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+nav.side { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 2px; padding-right: 4px; }
+nav.side .grp { font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 14px 10px 6px; }
+nav.side a { display: flex; gap: 8px; align-items: baseline; text-decoration: none; color: var(--muted); font: 500 13px/1.35 var(--body); padding: 6px 10px; border-radius: 7px; }
+nav.side a:hover { background: var(--soft); color: var(--ink); }
+nav.side a.active { background: var(--surface); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+nav.side a .n { font: 500 11px/1.35 var(--mono); color: var(--accent); min-width: 24px; }
+nav.side a.is-done { color: var(--ok); }
+nav.side a.is-done .n::after { content: " ✓"; color: var(--ok); }
+@media (max-width: 900px) {
+  nav.side { position: static; max-height: none; grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; padding-bottom: 6px; }
+  nav.side .grp { display: none; }
+}
+
+main { display: grid; gap: 40px; min-width: 0; }
+section.part { display: grid; gap: 18px; }
+section.part > header { display: grid; gap: 8px; }
+.part-intro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: grid; gap: 10px; }
+
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 14px; scroll-margin-top: 16px; }
+.step.done { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.step-h { display: flex; gap: 12px; align-items: flex-start; }
+.step-h .num { font: 600 13px/1 var(--mono); color: var(--accent-ink); background: var(--accent); border-radius: 7px; padding: 6px 8px; flex: none; margin-top: -2px; }
+.step.done .step-h .num { background: var(--ok); }
+.step-h h3 { flex: 1; font-size: 17px; }
+.check { display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--body); color: var(--muted); cursor: pointer; flex: none; user-select: none; }
+.check input { width: 18px; height: 18px; accent-color: var(--ok); }
+.goal { color: var(--muted); }
+
+.term { background: var(--term-bg); border-radius: 10px; overflow: hidden; }
+.term-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; font: 500 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--term-dim); border-bottom: 1px solid rgba(255,255,255,.06); }
+.cmd { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; }
+.cmd + .cmd { border-top: 1px dashed rgba(255,255,255,.07); }
+.cmd code { flex: 1; min-width: 0; background: none; padding: 0; color: var(--term-ink); font: 400 14px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.cmd code::before { content: "$ "; color: var(--term-prompt); }
+.cmd .c { color: var(--term-dim); }
+.copy { flex: none; font: 500 11px/1 var(--mono); color: var(--term-dim); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.copy:hover { color: var(--term-ink); }
+.copy.ok { color: #7EE2A8; border-color: #2E6B47; }
+
+.out { background: var(--soft); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; }
+.out pre { margin: 0; font: 400 13px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+.out mark { background: color-mix(in srgb, var(--teal) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; outline: 1px solid color-mix(in srgb, var(--teal) 45%, transparent); }
+.out .d { color: var(--muted); }
+
+.lbl { font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.out .lbl { color: var(--muted); }
+.say { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 12px 16px; display: grid; gap: 8px; }
+.say .lbl { color: var(--accent); }
+.say p { font-size: 16.5px; }
+.hl { border-left: 4px solid var(--teal); background: var(--teal-soft); border-radius: 0 10px 10px 0; padding: 12px 16px; display: grid; gap: 8px; }
+.hl .lbl { color: var(--teal); }
+.warn { border-left: 4px solid var(--warn); background: var(--warn-soft); border-radius: 0 10px 10px 0; padding: 12px 16px; display: grid; gap: 6px; font-size: 15px; }
+.warn .lbl { color: var(--warn); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.3 var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.tbl { overflow-x: auto; }
+
+/* topology */
+.topo { display: grid; gap: 14px; }
+.switch { background: var(--ink); color: var(--bg); border-radius: 10px; padding: 10px 14px; font: 500 13px/1.3 var(--mono); text-align: center; }
+.hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.host { border: 1px solid var(--line); border-top: 4px solid var(--c, var(--muted)); background: var(--surface); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.host b { font: 600 14px/1.3 var(--mono); }
+.host .ip { font: 400 13px/1.3 var(--mono); color: var(--muted); }
+.host .r { font-size: 13px; }
+.h-dhcp { --c: var(--accent); } .h-dns { --c: var(--teal); } .h-web { --c: #7A5AF8; } .h-cli { --c: var(--ok); }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 500 13px/1.3 var(--mono); }
+.flow span.node { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; }
+.flow span.arr { color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <span class="eyebrow">Сценарій для лектора · DHCP і DNS</span>
+  <h1>Міні-інтернет у ноутбуці</h1>
+  <p class="muted">Покроковий план живої демонстрації: яку команду запускати, що з'явиться на екрані, що сказати аудиторії і на що вказати. Позначайте кроки як пройдені; прогрес зберігається в цьому браузері.</p>
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Тема">
+      <button data-theme-btn="auto" aria-pressed="true">Авто</button>
+      <button data-theme-btn="light" aria-pressed="false">Світла</button>
+      <button data-theme-btn="dark" aria-pressed="false">Темна</button>
+    </div>
+    <div class="progress"><div class="bar"><span id="barFill"></span></div><span id="progText">0 / 0</span></div>
+    <button class="btn" id="resetBtn">Скинути прогрес</button>
+    <span class="muted" style="font-size:13px"><span class="kbd">J</span> / <span class="kbd">K</span> наступний / попередній крок · <span class="kbd">X</span> позначити поточний</span>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="side" id="nav" aria-label="Кроки"></nav>
+
+<main>
+
+<!-- ============ ПІДГОТОВКА ============ -->
+<section class="part" id="prep" data-title="Підготовка" data-group="Перед заняттям">
+  <header><span class="eyebrow">Перед заняттям</span><h2>Підготовка</h2></header>
+
+  <div class="part-intro">
+    <h3>Що потрібно</h3>
+    <ul>
+      <li><b>Linux</b>: network namespaces є тільки в Linux, тому на macOS напряму не запуститься. <b>На Mac</b> використайте привілейований контейнер у Docker Desktop (крок P0). Як альтернатива підійде будь-яка Linux-VM (Multipass, UTM).</li>
+      <li>Права root і пакети: <code>iproute2 dnsmasq-base isc-dhcp-client bind9 unbound dnsutils tcpdump python3 curl iputils-ping</code>. У новіших дистрибутивах <code>isc-dhcp-client</code> може бути відсутній, тому перевірте заздалегідь.</li>
+      <li>Два-три термінали з великим шрифтом: <b>T1</b> для команд laptop, <b>T2</b> для tcpdump (router або resolver), <b>T3</b> для файлів на хості.</li>
+      <li>Прогоніть усю лабораторію хоча б раз перед заняттям, особливо таймінг продовження оренди (крок A8).</li>
+    </ul>
+  </div>
+
+  <article class="step" id="p0">
+    <div class="step-h"><span class="num">P0</span><h3>На Mac: Linux-контейнер у Docker Desktop</h3></div>
+    <p class="goal">Запускайте з теки <code>networks</code>, де лежить <code>dns-dhcp-lab/</code>. Тека підключається в контейнер як <code>/lab</code>, тож скрипти й записані <code>.pcap</code> одразу видно на Mac.</p>
+    <div class="term"><div class="term-h"><span>mac · термінал · один раз перед заняттям</span></div>
+      <div class="cmd"><code>docker run -d --name netlab --privileged --hostname vm -v "$PWD/dns-dhcp-lab":/lab -w /lab ubuntu:24.04 sleep infinity</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>docker exec netlab bash -c 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y sudo iproute2 dnsmasq-base isc-dhcp-client bind9 unbound dnsutils tcpdump python3 curl iputils-ping'</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>mac · кожен термінал T1, T2, T3</span></div>
+      <div class="cmd"><code>docker exec -it netlab bash</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>mac · після заняття</span></div>
+      <div class="cmd"><code>docker rm -f netlab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="hl"><span class="lbl">Нотатки</span><ul>
+      <li><code>--privileged</code> обов'язковий: без нього не можна створювати namespace'и, міст і veth.</li>
+      <li>Усередині контейнера ви вже root і вже в bash, тож проблеми з zsh немає. <code>sudo</code> ставимо лише для того, щоб команди зі сценарію працювали без змін.</li>
+      <li>Перевірено на Docker Desktop (Intel Mac) з Ubuntu 24.04: DORA, резервація, <code>+trace</code>, <code>aa</code>, перехід на TCP, NXDOMAIN, PTR/SRV, round robin і curl працюють. Apple Silicon не перевіряли, але має працювати так само (образ arm64).</li>
+      <li>Контейнер між заняттями не видаляйте, і пакети не доведеться ставити знову: <code>docker start netlab</code>.</li>
+    </ul></div>
+    <p class="muted" style="font-size:14px">Після P0 крок P1 пропускайте: пакети вже встановлено.</p>
+  </article>
+
+  <article class="step" id="p1">
+    <div class="step-h"><span class="num">P1</span><h3>Встановити пакети (один раз, у Linux-VM)</h3></div>
+    <div class="term"><div class="term-h"><span>linux vm · хост</span></div>
+      <div class="cmd"><code>sudo apt update && sudo apt install -y iproute2 dnsmasq-base isc-dhcp-client bind9 unbound dnsutils tcpdump python3 curl iputils-ping</code><button class="copy">Копіювати</button></div>
+    </div>
+  </article>
+
+  <article class="step" id="p2">
+    <div class="step-h"><span class="num">P2</span><h3>Скорочення для кожного терміналу</h3></div>
+    <div class="term"><div class="term-h"><span>T1, T2, T3 · bash</span></div>
+      <div class="cmd"><code>L="sudo ip netns exec laptop"; R="sudo ip netns exec router"</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="warn"><span class="lbl">Увага: zsh</span><p>У zsh <code>$L dig …</code> не розбивається на слова, і ви побачите <code>command not found</code>. Спершу запустіть <code>bash</code>, або в zsh пишіть <code>${=L}</code>.</p></div>
+  </article>
+</section>
+
+<!-- ============ ТОПОЛОГІЯ ============ -->
+<section class="part" id="topo" data-title="Топологія" data-group="Перед заняттям">
+  <header><span class="eyebrow">Покажіть на початку</span><h2>Топологія лабораторії</h2></header>
+  <div class="part-intro topo">
+    <div class="switch">br-lab: «комутатор» · мережа 10.10.0.0/24</div>
+    <div class="hosts">
+      <div class="host h-dhcp"><b>router</b><span class="ip">10.10.0.1</span><span class="r">шлюз + DHCP (dnsmasq)</span></div>
+      <div class="host h-dns"><b>resolver</b><span class="ip">10.10.0.53</span><span class="r">рекурсивний DNS (Unbound)</span></div>
+      <div class="host h-dns"><b>root</b><span class="ip">10.10.0.11</span><span class="r">кореневий сервер «.»</span></div>
+      <div class="host h-dns"><b>tld</b><span class="ip">10.10.0.12</span><span class="r">TLD-сервер «lab.»</span></div>
+      <div class="host h-dns"><b>auth</b><span class="ip">10.10.0.13</span><span class="r">authoritative neoversity.lab</span></div>
+      <div class="host h-web"><b>web</b><span class="ip">10.10.0.80</span><span class="r">www (HTTP)</span></div>
+      <div class="host h-web"><b>api1–api3</b><span class="ip">10.10.0.81–83</span><span class="r">три вебсервери api</span></div>
+      <div class="host h-cli"><b>laptop</b><span class="ip">DHCP → ?</span><span class="r">наш клієнт, MAC …:aa</span></div>
+      <div class="host h-cli"><b>printer</b><span class="ip">DHCP → ?</span><span class="r">клієнт з резервацією, MAC …:50</span></div>
+    </div>
+    <div class="flow"><span class="muted">Ланцюжок DNS:</span><span class="node">laptop</span><span class="arr">→</span><span class="node">resolver .53</span><span class="arr">→</span><span class="node">root .11</span><span class="arr">→</span><span class="node">tld .12</span><span class="arr">→</span><span class="node">auth .13</span></div>
+  </div>
+  <div class="say"><span class="lbl">Що сказати</span>
+    <p>«Усе, що ви бачите, живе в одному ноутбуці. Кожен прямокутник — це окремий "комп'ютер": network namespace зі своїми інтерфейсами, адресами і таблицею маршрутів. Їх з'єднують віртуальні кабелі (veth) через віртуальний комутатор br-lab. Програми тут справжні: той самий dnsmasq, BIND і Unbound, що працюють у провайдерів.»</p>
+  </div>
+</section>
+
+<!-- ============ ЯК ВЛАШТОВАНА ЛАБОРАТОРІЯ ============ -->
+<section class="part" id="inside" data-title="Що робить lab-up.sh" data-group="Як влаштована лабораторія">
+  <header><span class="eyebrow">Під капотом</span><h2>Що робить lab-up.sh і як це перевірити</h2></header>
+  <div class="part-intro">
+    <p>Скрипт іде п'ятьма етапами, позначеними в коді коментарями <code># ---------- N. … ----------</code>. Кожен етап нижче має три частини: <b>що робить код</b>, <b>команду для перевірки</b> і <b>що означає результат</b>. Усі виводи нижче отримано під час реального запуску (Ubuntu 24.04 у Docker). Номери інтерфейсів, MAC-адреси мосту і PID у вас будуть інші.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Етап</th><th>Що створює</th><th>Аналог у реальному світі</th></tr></thead>
+      <tbody>
+        <tr><td>1. Комутатор і кабелі</td><td>міст <code>br-lab</code>, 11 network namespace'ів, пари veth, IP-адреси</td><td>комутатор у серверній, 11 комп'ютерів і патч-корди</td></tr>
+        <tr><td>2. DHCP-сервер</td><td><code>dnsmasq</code> у namespace <code>router</code></td><td>DHCP на домашньому роутері чи в корпоративній мережі</td></tr>
+        <tr><td>3. Ієрархія DNS</td><td>три <code>named</code> (BIND): root, tld, auth + файли зон</td><td>кореневі сервери, реєстр .com/.ua, DNS-хостинг власника домену</td></tr>
+        <tr><td>4. Резолвер</td><td><code>unbound</code> у namespace <code>resolver</code></td><td>DNS провайдера, 1.1.1.1, 8.8.8.8</td></tr>
+        <tr><td>5. Вебсервери</td><td>чотири <code>python3 -m http.server 80</code></td><td>сайти, до яких ходить браузер</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted" style="font-size:14px">Усі конфіги, зони, журнали й pid-файли скрипт кладе в <code>/tmp/netlab</code> і на початку щоразу очищає цю теку. Команди нижче виконуються на хості (у Linux-VM або всередині контейнера <code>netlab</code>), і лабораторія має бути вже запущена (<a href="#a0">A0</a>). Цей розділ передусім для вашої підготовки, але L1–L3 добре показати й аудиторії перед частиною A.</p>
+  </div>
+
+  <article class="step" id="l1">
+    <div class="step-h"><span class="num">L1</span><h3>Етап 1: комутатор, «комп'ютери» і «кабелі»</h3></div>
+    <div class="out"><span class="lbl">Код: функція add_host (скорочено)</span><pre>ip link add br-lab type bridge                          <span class="d"># комутатор</span>
+ip netns add "$ns"                                      <span class="d"># новий «комп'ютер»</span>
+ip link add "v-$ns" type veth peer name eth0 netns "$ns" <span class="d"># кабель: два кінці</span>
+ip link set "v-$ns" master br-lab up                    <span class="d"># один кінець — у комутатор</span>
+ip -n "$ns" link set eth0 address "$mac"                <span class="d"># передбачуваний MAC</span>
+ip -n "$ns" addr add "$addr" dev eth0                   <span class="d"># статична IP (крім laptop/printer)</span>
+mkdir -p "/etc/netns/$ns"                               <span class="d"># власні resolv.conf і hosts</span></pre></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>ip -br link show type bridge</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>ip -br link show master br-lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>ip netns list</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>for ns in $(ip netns list | cut -d' ' -f1 | sort); do printf '%-9s %s\n' $ns "$(sudo ip netns exec $ns ip -4 -br addr show eth0 | awk '{print $3}')"; done</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>br-lab           <mark>UP</mark>   … &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;
+
+<mark>v-router</mark>@if11    UP   …
+v-resolver@if11  UP   …
+<span class="d">… ще 9 портів: v-root, v-tld, v-auth, v-web, v-api1..3, v-laptop, v-printer</span>
+
+router (id: 1)  resolver (id: 2)  … <span class="d">(11 штук, порядок довільний)</span>
+
+api1      10.10.0.81/24
+auth      10.10.0.13/24
+<mark>laptop    </mark>                <span class="d">← порожньо: чекає на DHCP</span>
+<mark>printer   </mark>
+resolver  10.10.0.53/24
+router    10.10.0.1/24
+<span class="d">…</span></pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li><b>Network namespace</b> — це окремий мережевий стек ядра: свої інтерфейси, адреси, маршрути, ARP-таблиця і порти. Для мережі це повноцінний окремий комп'ютер, хоча процеси й файлова система спільні з хостом.</li>
+      <li><b>veth</b> — це «кабель» із двома кінцями. Кінець <code>v-&lt;ім'я&gt;</code> залишається на хості й вставлений у <code>br-lab</code>, а інший кінець перейменовано на <code>eth0</code> і перенесено всередину namespace. Тому <code>ip link show master br-lab</code> — це фактично список зайнятих портів комутатора.</li>
+      <li><b>br-lab</b> — програмний L2-комутатор: пересилає кадри за MAC-адресами і не має власної IP.</li>
+      <li><b>MAC-адреси</b> на кшталт <code>02:00:00:00:00:53</code> задано вручну, щоб їх було легко читати в tcpdump: останній байт повторює IP (<code>:53</code> → .53, <code>:aa</code> → laptop). Перший байт <code>02</code> означає «локально призначена адреса», тож вона ніколи не збігається з адресою реальної мережевої карти.</li>
+      <li>laptop і printer без адреси навмисно: їм її видасть DHCP у частині A.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l2">
+    <div class="step-h"><span class="num">L2</span><h3>Перевірка: «кабелі» справді працюють (L2)</h3></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>sudo ip netns exec web ping -c1 10.10.0.53</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec web ip neigh</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>bridge fdb show br br-lab | grep 02:00</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>1 packets transmitted, 1 received, <mark>0% packet loss</mark>
+
+10.10.0.53 dev eth0 lladdr <mark>02:00:00:00:00:53</mark> REACHABLE
+
+02:00:00:00:00:01 dev <mark>v-router</mark> master br-lab
+02:00:00:00:00:53 dev <mark>v-resolver</mark> master br-lab
+<span class="d">…</span></pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li><code>ip neigh</code> показує ARP-таблицю «комп'ютера» web: щоб відправити ping на .53, він спершу через ARP дізнався MAC резолвера.</li>
+      <li><code>bridge fdb</code> показує таблицю комутації: «за цим MAC стоїть ось цей порт». Комутатор вивчив її сам, з кадрів, які через нього пройшли.</li>
+      <li>Чудова ілюстрація до теми рівнів: IP (L3) → ARP → MAC (L2) → порт комутатора.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l3">
+    <div class="step-h"><span class="num">L3</span><h3>Перевірка: «комп'ютери» ізольовані одне від одного і від хоста</h3></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>$L ip -br link</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec web ip route</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>ip -4 -br addr; ip route get 10.10.0.80</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L cat /etc/resolv.conf; echo '---'; grep nameserver /etc/resolv.conf</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>lo               UNKNOWN  …
+<span class="d">tunl0, gre0, sit0, … DOWN   ← службові пристрої ядра, ігноруйте</span>
+<mark>eth0@if22</mark>        UP       02:00:00:00:00:aa
+
+<mark>10.10.0.0/24 dev eth0 proto kernel scope link src 10.10.0.80</mark>   <span class="d">← і більше нічого</span>
+
+eth0             UP       172.17.0.3/16               <span class="d">← у хоста немає адреси 10.10.0.x</span>
+10.10.0.80 <mark>via 172.17.0.1</mark> dev eth0                     <span class="d">← хост пішов би «в інтернет», а не в лабораторію</span>
+
+<span class="d">(порожньо)</span>                                            <span class="d">← resolv.conf ноутбука</span>
+---
+nameserver 192.168.65.7                               <span class="d">← resolv.conf хоста (у вас інший)</span></pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li>У ноутбука лише <code>lo</code> і свій <code>eth0</code>: мережевих інтерфейсів хоста (Wi-Fi, Docker) він не бачить.</li>
+      <li>У серверів є лише маршрут до своєї підмережі, а <b>default route немає</b>. Усі в одній /24, тож шлюз їм не потрібен. Шлюз 10.10.0.1 «шлюз» лише за назвою: за ним немає іншої мережі й немає виходу в інтернет. Лабораторія повністю замкнена.</li>
+      <li><b>Хост не є частиною лабораторії</b>: у <code>br-lab</code> немає IP, тому з хоста не можна напряму зробити ping 10.10.0.x. Усе робимо через <code>ip netns exec</code>.</li>
+      <li><code>ip netns exec laptop</code> підміняє <code>/etc/resolv.conf</code> і <code>/etc/hosts</code> файлами з <code>/etc/netns/laptop/</code>. Тому в ноутбука свій, поки порожній, resolv.conf, який згодом заповнить dhclient, і свій hosts (крок B10).</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l4">
+    <div class="step-h"><span class="num">L4</span><h3>Етап 2: DHCP-сервер (dnsmasq)</h3></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Рядок у /tmp/netlab/dnsmasq.conf</th><th>Що означає</th></tr></thead>
+      <tbody>
+        <tr><td><code>port=0</code></td><td>вимкнути DNS-частину dnsmasq: тут він лише DHCP-сервер</td></tr>
+        <tr><td><code>interface=eth0</code>, <code>bind-interfaces</code></td><td>слухати тільки на eth0 namespace'у router</td></tr>
+        <tr><td><code>dhcp-range=10.10.0.100,10.10.0.150,255.255.255.0,2m</code></td><td>пул адрес, маска і <b>оренда 2 хв</b> (звідси 120 / 60 / 105 у кроці A4)</td></tr>
+        <tr><td><code>dhcp-option=option:router,10.10.0.1</code></td><td>який шлюз повідомити клієнтам (опція 3)</td></tr>
+        <tr><td><code>dhcp-option=option:dns-server,10.10.0.53</code></td><td>який DNS повідомити (опція 6), тобто наш резолвер</td></tr>
+        <tr><td><code>dhcp-option=option:domain-name,neoversity.lab</code></td><td>домен (опція 15), з'явиться в <code>search</code> у resolv.conf</td></tr>
+        <tr><td><code>dhcp-host=02:00:00:00:00:50,10.10.0.50,printer</code></td><td>резервація за MAC (крок A7)</td></tr>
+        <tr><td><code>dhcp-leasefile=…</code>, <code>log-dhcp</code></td><td>де зберігати оренди і детальний журнал</td></tr>
+      </tbody>
+    </table></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>for p in $(pgrep -x 'dnsmasq|named|unbound|python3'); do ns=$(sudo ip netns identify $p 2>/dev/null); [ -n "$ns" ] && printf '%-9s %s\n' "$ns" "$(ps -o args= -p $p | cut -c1-60)"; done</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$R ss -lunp</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>grep -E 'IP range|DHCP(DISCOVER|OFFER|REQUEST|ACK)' /tmp/netlab/dhcp.log</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre><mark>router</mark>    dnsmasq -C /tmp/netlab/dnsmasq.conf …
+<mark>root</mark>      named -c /tmp/netlab/root/named.conf -u root
+<mark>tld</mark>       named -c /tmp/netlab/tld/named.conf -u root
+<mark>auth</mark>      named -c /tmp/netlab/auth/named.conf -u root
+<mark>resolver</mark>  unbound -c /tmp/netlab/unbound.conf
+web       python3 -m http.server 80 --directory /tmp/netlab/www
+api1      python3 -m http.server 80 --directory /tmp/netlab/api1
+<span class="d">… api2, api3</span>
+
+UNCONN 0 0  <mark>0.0.0.0%eth0:67</mark>  0.0.0.0:*  users:(("dnsmasq",…))
+
+dnsmasq-dhcp: DHCP, <mark>IP range 10.10.0.100 -- 10.10.0.150, lease time 2m</mark>
+<span class="d"># після dhclient у частині A:</span>
+dnsmasq-dhcp: 4025525347 DHCPDISCOVER(eth0) 02:00:00:00:00:aa
+dnsmasq-dhcp: 4025525347 DHCPOFFER(eth0) 10.10.0.110 02:00:00:00:00:aa
+dnsmasq-dhcp: 4025525347 DHCPREQUEST(eth0) 10.10.0.110 02:00:00:00:00:aa
+dnsmasq-dhcp: 4025525347 <mark>DHCPACK</mark>(eth0) 10.10.0.110 02:00:00:00:00:aa vm</pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li>Цикл з <code>ip netns identify</code> показує <b>в якому «комп'ютері» живе кожен процес</b>. Процеси спільні з хостом (їх видно в <code>ps</code>), а мережа в кожного своя. Ця команда — мапа всієї лабораторії одним екраном.</li>
+      <li><code>0.0.0.0%eth0:67</code>: dnsmasq слухає UDP-порт 67, прив'язаний до eth0. Адреса 0.0.0.0 тут потрібна, бо Discover приходить на broadcast від клієнта без адреси.</li>
+      <li><code>dhcp.log</code> — це DORA очима сервера. Число на початку рядка — та сама транзакція (xid), яку видно в tcpdump. Якщо tcpdump не встигли запустити, журнал підтвердить, що обмін відбувся.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l5">
+    <div class="step-h"><span class="num">L5</span><h3>Етап 3: ієрархія DNS (три BIND)</h3></div>
+    <p class="goal">Функція <code>mk_named</code> генерує для кожного сервера <code>named.conf</code>: <code>recursion no</code> (лише authoritative, на чужі імена не відповідає) і список зон <code>type primary</code>. Блок <code>controls</code> / <code>key</code> — це канал керування для rndc на 127.0.0.1:953; у сценарії він не використовується.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Сервер</th><th>Файл зони</th><th>Що в ньому головне</th></tr></thead>
+      <tbody>
+        <tr><td>root .11</td><td><code>root/root.zone</code></td><td><b>Делегування</b>: <code>lab. NS ns.nic.lab.</code> + «клейовий» <code>ns.nic.lab. A 10.10.0.12</code>. Також делегує зворотну зону <code>0.10.10.in-addr.arpa</code> на .13.</td></tr>
+        <tr><td>tld .12</td><td><code>tld/lab.zone</code></td><td>Делегування <code>neoversity.lab. NS ns1.neoversity.lab.</code> + glue <code>A 10.10.0.13</code>.</td></tr>
+        <tr><td>auth .13</td><td><code>auth/neoversity.lab.zone</code></td><td>Справжні дані: A, AAAA, CNAME, MX, TXT, SRV, CAA (усі типи з кроку B7). TTL: 3600 за замовчуванням, <b>www 60</b>, <b>api 30</b>.</td></tr>
+        <tr><td>auth .13</td><td><code>auth/rev.zone</code></td><td>PTR: .80 → www, .25 → mail (для <code>dig -x</code>).</td></tr>
+      </tbody>
+    </table></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>grep -v '^;' /tmp/netlab/root/root.zone</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>named-checkzone neoversity.lab /tmp/netlab/auth/neoversity.lab.zone</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec auth ss -Hlntu | awk '{print $1, $5}' | sort -u</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec auth dig @10.10.0.13 +short www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>.                  IN SOA a.root-servers.lab. admin.lab. 1 1800 900 604800 86400
+.                  IN NS  a.root-servers.lab.
+a.root-servers.lab. IN A  10.10.0.11
+<mark>lab.               IN NS  ns.nic.lab.</mark>
+<mark>ns.nic.lab.        IN A   10.10.0.12</mark>
+<span class="d">…</span>
+
+zone neoversity.lab/IN: loaded serial <mark>2026102701</mark>
+<mark>OK</mark>
+
+tcp 10.10.0.13:53
+tcp 127.0.0.1:53
+tcp 127.0.0.1:953      <span class="d">← канал керування rndc</span>
+udp 10.10.0.13:53
+udp 127.0.0.1:53
+
+10.10.0.80</pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li>Корінь <b>не знає</b> адреси www, він знає лише, кому делеговано <code>lab.</code>. Саме ці два рядки (NS + glue A) ви бачите як «направлення» в кроках B2 і B3.</li>
+      <li>Glue-запис потрібен, бо ім'я сервера <code>ns.nic.lab</code> лежить усередині зони, яку він обслуговує. Без адреси «в додачу» вийшло б коло: щоб знайти сервер lab., треба спитати сервер lab.</li>
+      <li><code>named-checkzone</code> перевіряє синтаксис зони. Корисно запускати після ручного редагування в кроці B13.</li>
+      <li>BIND слухає <b>і UDP, і TCP</b> на порту 53. TCP знадобиться в кроці B6.</li>
+      <li>Наприкінці скрипт додає до зони запис <code>big</code>: 16 TXT-рядків по ~95 символів, разом ~1,6 КБ. Його єдина мета — не влізти в UDP і змусити DNS перейти на TCP.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l6">
+    <div class="step-h"><span class="num">L6</span><h3>Етап 4: рекурсивний резолвер (Unbound)</h3></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Налаштування</th><th>Навіщо</th></tr></thead>
+      <tbody>
+        <tr><td><code>root.hints</code></td><td><b>Єдине, що резолвер знає від початку</b>: де корінь (a.root-servers.lab = 10.10.0.11). У справжньому інтернеті це файл named.root від IANA зі списком 13 кореневих серверів.</td></tr>
+        <tr><td><code>interface: 0.0.0.0</code>, <code>access-control: 10.10.0.0/24 allow</code></td><td>Обслуговувати тільки «свою» мережу. Резолвер, відкритий для всіх, використовують для DDoS-атак.</td></tr>
+        <tr><td><code>module-config: "iterator"</code>, <code>domain-insecure: "."</code></td><td>Лише ітеративний пошук, без перевірки DNSSEC: у лабораторній зоні немає підписів.</td></tr>
+        <tr><td><code>qname-minimisation: no</code></td><td>Надсилати кореню повне ім'я, щоб у кроці B3 було видно <code>A? mail.neoversity.lab.</code> на кожному рівні.</td></tr>
+        <tr><td><code>rrset-roundrobin: yes</code></td><td>Перемішувати порядок записів (крок B11).</td></tr>
+        <tr><td><code>local-zone: "10.in-addr.arpa." nodefault</code></td><td>За замовчуванням Unbound не шукає PTR для приватних мереж (10.x). Без цього рядка <code>dig -x 10.10.0.80</code> не спрацює.</td></tr>
+        <tr><td><code>log-queries: yes</code></td><td>Записувати кожен запит клієнта в <code>unbound.log</code>.</td></tr>
+        <tr><td><code>remote-control</code></td><td>Дозволяє <code>unbound-control reload</code>, яким ми чистимо кеш у кроці B3.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>cat /tmp/netlab/root.hints</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec resolver ss -Hlntu | awk '{print $1, $5}' | sort -u</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>tail -f /tmp/netlab/unbound.log</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>.                   3600000 NS a.root-servers.lab.
+a.root-servers.lab. 3600000 A  <mark>10.10.0.11</mark>
+
+tcp 0.0.0.0:53
+tcp 127.0.0.1:8953     <span class="d">← unbound-control</span>
+udp 0.0.0.0:53
+
+info: start of service (unbound 1.19.2).
+<span class="d"># після $L dig www.neoversity.lab:</span>
+info: <mark>10.10.0.110 www.neoversity.lab. A IN</mark></pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li>Резолвер стартує з <b>порожнім кешем</b> і знає лише адресу кореня. Решту він дізнається, проходячи ієрархію, і кешує.</li>
+      <li><code>tail -f unbound.log</code> у третьому терміналі під час частини B показує, хто і що питав. Добре видно, що всі запити приходять від 10.10.0.110, адреси, виданої DHCP.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l7">
+    <div class="step-h"><span class="num">L7</span><h3>Етап 5: вебсервери</h3></div>
+    <p class="goal">У namespace'ах web, api1, api2, api3 скрипт запускає <code>python3 -m http.server 80</code> із теки, де лежить один <code>index.html</code>, щоб за відповіддю було видно, який сервер відповів.</p>
+    <div class="term"><div class="term-h"><span>хост</span></div>
+      <div class="cmd"><code>sudo ip netns exec web ss -Hlnt</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>sudo ip netns exec web curl -s http://10.10.0.80</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>cat /tmp/netlab/api*/index.html</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Реальний вивід</span><pre>LISTEN 0 5  <mark>0.0.0.0:80</mark>  0.0.0.0:*
+
+Привіт з www.neoversity.lab (10.10.0.80)
+
+відповідає api1 (10.10.0.81)
+відповідає api2 (10.10.0.82)
+відповідає api3 (10.10.0.83)</pre></div>
+    <div class="hl"><span class="lbl">Що це означає</span><ul>
+      <li>Чотири процеси слухають <b>той самий порт 80</b> і не конфліктують, бо кожен у своєму namespace, тобто на «своєму комп'ютері».</li>
+      <li>Ці сервери працюють у фоні (<code>&amp;</code>) без pid-файлів, тому <code>lab-down.sh</code> зупиняє їх через <code>pkill -f "http.server 80"</code>.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="l8">
+    <div class="step-h"><span class="num">L8</span><h3>Файли в /tmp/netlab і типові проблеми</h3></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Файл</th><th>Що це</th></tr></thead>
+      <tbody>
+        <tr><td><code>dnsmasq.conf</code>, <code>dhcp.log</code>, <code>dnsmasq.leases</code></td><td>конфіг DHCP, його журнал і видані оренди (A6)</td></tr>
+        <tr><td><code>root/</code>, <code>tld/</code>, <code>auth/</code></td><td>для кожного BIND: <code>named.conf</code>, файли зон, <code>named.pid</code></td></tr>
+        <tr><td><code>root.hints</code>, <code>unbound.conf</code>, <code>unbound.log</code></td><td>резолвер: адреса кореня, конфіг, журнал запитів</td></tr>
+        <tr><td><code>www/</code>, <code>api1/</code>…<code>api3/</code></td><td>сторінки вебсерверів</td></tr>
+        <tr><td><code>*.pid</code></td><td>за ними <code>lab-down.sh</code> знає, які процеси зупинити</td></tr>
+        <tr><td><code>laptop.leases</code>, <code>dhclient-*.pid</code></td><td>з'являються, коли ви запускаєте dhclient із <code>-lf</code>/<code>-pf</code> (частина A)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="warn"><span class="lbl">Повторний запуск lab-up.sh падає</span><p>Якщо лабораторія вже запущена, скрипт зупиняється на першому кроці з <code>RTNETLINK answers: File exists</code>: міст <code>br-lab</code> уже існує, а <code>set -e</code> перериває виконання. Перезапуск завжди робіть парою:</p>
+      <div class="term" style="margin-top:6px"><div class="cmd"><code>sudo bash lab-down.sh; sudo bash lab-up.sh</code><button class="copy">Копіювати</button></div></div>
+    </div>
+    <div class="warn"><span class="lbl">Якщо якийсь сервер не відповідає</span><p>Запустіть цикл із <code>ip netns identify</code> (L4): якщо процесу немає у списку, він не стартував. Подивіться його журнал (<code>dhcp.log</code>, <code>unbound.log</code>) або запустіть команду з <code>lab-up.sh</code> вручну, щоб побачити помилку.</p></div>
+  </article>
+</section>
+
+<!-- ============ ЧАСТИНА A ============ -->
+<section class="part" id="partA" data-title="Огляд" data-group="Частина A · DHCP">
+  <header><span class="eyebrow">Частина A</span><h2>DHCP: як ноутбук отримує адресу</h2></header>
+  <div class="part-intro">
+    <p><b>Головна думка частини:</b> пристрій, щойно підключений до мережі, нічого не знає: ні своєї адреси, ні шлюзу, ні DNS. За чотири пакети (DORA) DHCP видає йому все це <b>в оренду</b>.</p>
+    <p class="muted">Налаштування сервера (<code>/tmp/netlab/dnsmasq.conf</code>): пул 10.10.0.100–150, оренда 2 хв, шлюз 10.10.0.1, DNS 10.10.0.53, домен neoversity.lab, резервація 10.10.0.50 для MAC 02:00:00:00:00:50.</p>
+  </div>
+
+  <article class="step" id="a0">
+    <div class="step-h"><span class="num">A0</span><h3>Запустити лабораторію</h3></div>
+    <div class="term"><div class="term-h"><span>T3 · хост, у теці з lab-up.sh</span></div>
+      <div class="cmd"><code>sudo bash lab-up.sh</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>ip netns list</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre>Лабораторію запущено. Клієнти laptop і printer поки без адрес.
+<span class="d">…</span>
+laptop
+printer
+api3 <span class="d">… (11 namespace'ів)</span></pre></div>
+    <p class="muted" style="font-size:14px">Що саме створює скрипт і як це перевірити, див. у розділі <a href="#inside">«Що робить lab-up.sh»</a> (L1–L8).</p>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Скрипт за секунду "зібрав" мережу з одинадцяти комп'ютерів, запустив DHCP-сервер, чотири DNS-сервери і чотири вебсервери. Ноутбук і принтер підключено кабелем, але адрес у них ще немає. Зараз це виправимо.»</p></div>
+  </article>
+
+  <article class="step" id="a1">
+    <div class="step-h"><span class="num">A1</span><h3>Ноутбук без адреси</h3></div>
+    <p class="goal">Мета: показати, що без IP-адреси мережа «не існує», навіть коли кабель підключено. Пінгуємо <b>10.10.0.53</b>: це DNS-резолвер із топології, він точно увімкнений, тож проблема буде тільки на боці ноутбука.</p>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L ip -4 addr show eth0</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L ip route</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L ping -c1 10.10.0.53</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre><span class="d"># ip -4 addr: порожньо (немає рядка inet)</span>
+<span class="d"># ip route: порожньо</span>
+ping: connect: <mark>Network is unreachable</mark></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Спробуємо достукатися до сусіда, сервера 10.10.0.53 з нашої схеми. Він працює, він у тому самому комутаторі.»</p><p>«Інтерфейс увімкнено, кабель на місці, але IPv4-адреси немає, а отже немає й жодного маршруту. Ping навіть не намагається нічого відправити: ядро одразу каже "мережа недосяжна". Це не таймаут, пакет не покинув комп'ютер.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Різниця між <b>Network is unreachable</b> (локальна помилка, немає маршруту) і таймаутом (пакет пішов, а відповіді немає).</li>
+      <li>Так виглядає щойно ввімкнений ноутбук у кав'ярні до того, як спрацював DHCP.</li>
+      <li>Чому саме .53: цей ping ми повторимо в A5, і він пройде. А ще саме .53 DHCP згодом видасть ноутбуку як DNS-сервер. Не розкривайте це зараз, нехай буде маленьким «ага» в A4–A5.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="a2">
+    <div class="step-h"><span class="num">A2</span><h3>Слухаємо DHCP на сервері</h3></div>
+    <div class="term"><div class="term-h"><span>T2 · router (залиште працювати)</span></div>
+      <div class="cmd"><code>$R tcpdump -n -i eth0 'port 67 or port 68'</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Ставимо "прослушку" на сервері. DHCP працює поверх UDP: сервер слухає порт 67, клієнт — порт 68. Поки що тиша.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul><li>Розставте вікна так, щоб T1 і T2 були видні одночасно: далі все відбувається в обох.</li></ul></div>
+  </article>
+
+  <article class="step" id="a3">
+    <div class="step-h"><span class="num">A3</span><h3>DORA: Discover → Offer → Request → Ack</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dhclient -v -lf /tmp/netlab/laptop.leases -pf /tmp/netlab/dhclient-laptop.pid eth0</code><button class="copy">Копіювати</button></div>
+    </div>
+    <p class="muted" style="font-size:14px">Скорочений варіант із методички: <code>$L dhclient -v eth0</code>. Окремі <code>-lf</code>/<code>-pf</code> радимо, щоб laptop і printer не ділили один файл оренди й pid, а <code>lab-down.sh</code> потім сам зупинив dhclient.</p>
+    <div class="two">
+      <div class="out"><span class="lbl">T1: dhclient (приблизно)</span><pre><span class="d">…</span>
+<mark>DHCPDISCOVER</mark> on eth0 to 255.255.255.255 port 67 interval 3
+<mark>DHCPOFFER</mark> of 10.10.0.110 from 10.10.0.1
+<mark>DHCPREQUEST</mark> for 10.10.0.110 on eth0 to 255.255.255.255 port 67
+<mark>DHCPACK</mark> of 10.10.0.110 from 10.10.0.1
+<mark>bound to 10.10.0.110</mark> -- renewal in <mark>~50</mark> seconds.</pre></div>
+      <div class="out"><span class="lbl">T2: tcpdump</span><pre><mark>0.0.0.0</mark>.68 &gt; <mark>255.255.255.255</mark>.67: BOOTP/DHCP, Request from 02:00:00:00:00:aa  <span class="d">← D</span>
+10.10.0.1.67 &gt; 10.10.0.110.68: BOOTP/DHCP, Reply              <span class="d">← O</span>
+0.0.0.0.68 &gt; 255.255.255.255.67: BOOTP/DHCP, Request from 02:00:00:00:00:aa  <span class="d">← R</span>
+10.10.0.1.67 &gt; 10.10.0.110.68: BOOTP/DHCP, Reply              <span class="d">← A</span></pre></div>
+    </div>
+    <div class="say"><span class="lbl">Що сказати</span>
+      <p>«Чотири кроки, DORA. <b>Discover</b>: ноутбук кричить на всю мережу "Є тут DHCP-сервер?". Відправника в нього ще немає, тому 0.0.0.0, і кому слати, він теж не знає, тому broadcast 255.255.255.255. <b>Offer</b>: сервер відповідає "Можу дати 10.10.0.110". <b>Request</b>: клієнт каже "Беру саме цю адресу від саме цього сервера", і знову broadcast, щоб інші сервери, якщо вони є, знали, що їхні пропозиції відхилено. <b>Ack</b>: сервер підтверджує, адреса видана.»</p>
+    </div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li><b>0.0.0.0 → 255.255.255.255</b> у Discover і Request: клієнт ще «ніхто» і не знає сервера.</li>
+      <li>У короткому виводі tcpdump і Discover, і Request підписані як <code>Request</code> (тип BOOTP-пакета), а Offer і Ack як <code>Reply</code>. Справжній тип DHCP-повідомлення видно тільки з <code>-vv</code>, і це міст до наступного кроку.</li>
+      <li>MAC <code>02:00:00:00:00:aa</code> у кожному запиті клієнта: за ним сервер упізнає пристрій.</li>
+      <li>Чому саме .110, а не .100: dnsmasq обирає адресу з пулу за хешем MAC, тож той самий пристрій зазвичай отримує ту саму адресу.</li>
+      <li><b>renewal in ~50 seconds</b>, а не рівно 60 (T1): dhclient трохи зміщує момент продовження випадковим чином, щоб тисячі клієнтів не стукали до сервера одночасно.</li>
+    </ul></div>
+    <div class="warn"><span class="lbl">Якщо побачите два Discover і два Offer</span><p>Це нормально: клієнт не дочекався відповіді й повторив Discover приблизно за 3 с, сервер відповів на обидва. У записі <code>dhcp-dora.pcap</code> саме так. Чудовий привід сказати, що UDP не гарантує доставку, тож повтори робить сам протокол.</p></div>
+  </article>
+
+  <article class="step" id="a4">
+    <div class="step-h"><span class="num">A4</span><h3>Детально: опції всередині пакетів</h3></div>
+    <p class="goal">Щоб побачити DORA ще раз: Ctrl+C у T2, запустіть tcpdump з <code>-vv</code>, потім у T1 звільніть адресу й отримайте її знову.</p>
+    <div class="term"><div class="term-h"><span>T2 · router</span></div>
+      <div class="cmd"><code>$R tcpdump -n -vv -i eth0 'port 67 or port 68'</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dhclient -r -lf /tmp/netlab/laptop.leases -pf /tmp/netlab/dhclient-laptop.pid eth0</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dhclient -v -lf /tmp/netlab/laptop.leases -pf /tmp/netlab/dhclient-laptop.pid eth0</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">T2: Offer (реальний пакет із dhcp-dora.pcap)</span><pre>10.10.0.1.67 &gt; 10.10.0.110.68: [<span class="d">bad udp cksum …</span>] BOOTP/DHCP, Reply, xid <mark>0x4acf0a2d</mark>
+  Your-IP 10.10.0.110
+  Server-IP 10.10.0.1
+  Client-Ethernet-Address 02:00:00:00:00:aa
+    DHCP-Message (53): <mark>Offer</mark>
+    Server-ID (54): 10.10.0.1
+    Lease-Time (51): <mark>120</mark>
+    RN (58): <mark>60</mark>
+    RB (59): <mark>105</mark>
+    Subnet-Mask (1): <mark>255.255.255.0</mark>
+    BR (28): 10.10.0.255
+    Domain-Name (15): "neoversity.lab"
+    Domain-Name-Server (6): <mark>10.10.0.53</mark>
+    Default-Gateway (3): <mark>10.10.0.1</mark></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span>
+      <p>«DHCP дає не тільки адресу, а цілий "пакет налаштувань": маску, шлюз, DNS-сервер, домен. І все це <b>в оренду</b>: Lease-Time 120 секунд. Ми навмисно поставили дві хвилини, щоб побачити продовження наживо; вдома зазвичай доба або більше.»</p>
+      <p>«RN, тобто T1, дорівнює 60: на половині строку клієнт спробує продовжити оренду у свого сервера. RB, тобто T2, дорівнює 105, це 87,5 % строку: якщо свій сервер мовчить, клієнт питає будь-який.»</p>
+    </div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li><b>xid</b> однаковий в усіх чотирьох пакетах: це номер транзакції, яким клієнт пов'язує відповіді зі своїм запитом.</li>
+      <li>У Discover і Request клієнт надсилає <b>Parameter-Request (55)</b>, тобто список того, що йому потрібно (маска, шлюз, DNS…).</li>
+      <li>У Request з'являються <b>Server-ID (54)</b> і <b>Requested-IP (50)</b>: «беру ось цю адресу від ось цього сервера».</li>
+      <li>Значення 120 / 60 / 105 відповідають рядку <code>dhcp-range=…,2m</code> у конфігу dnsmasq.</li>
+      <li><code>bad udp cksum</code> на пакетах сервера ігноруйте: контрольну суму рахує «мережева карта» (offload), а на veth її ніхто не дораховує.</li>
+    </ul></div>
+    <div class="warn"><span class="lbl">Резерв</span><p>Якщо наживо не виходить, покажіть запис: <code>tcpdump -n -vv -r dhcp-dora.pcap</code> (працює й на macOS) або відкрийте файл у Wireshark.</p></div>
+  </article>
+
+  <article class="step" id="a5">
+    <div class="step-h"><span class="num">A5</span><h3>Результат: адреса, маршрут, DNS</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L ip -4 addr show eth0</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L ip route</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L cat /etc/resolv.conf</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L ping -c1 10.10.0.53</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>inet <mark>10.10.0.110/24</mark> brd 10.10.0.255 scope global <mark>dynamic</mark> eth0
+   valid_lft <mark>1xx sec</mark> preferred_lft 1xx sec
+
+<mark>default via 10.10.0.1</mark> dev eth0
+10.10.0.0/24 dev eth0 proto kernel scope link src 10.10.0.110
+
+domain neoversity.lab
+search neoversity.lab
+<mark>nameserver 10.10.0.53</mark>
+
+64 bytes from 10.10.0.53: icmp_seq=1 ttl=64 time=0.0xx ms</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Чотири пакети, і ноутбук отримав чотири речі: адресу з маскою, шлюз за замовчуванням, DNS-сервер і домен. Тепер той самий ping до 10.10.0.53, що хвилину тому падав, проходить. І погляньте на nameserver: це та сама адреса, яку ми пінгували на початку, наш DNS-резолвер.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Слово <b>dynamic</b> і <b>valid_lft</b>, що зменшується: адреса орендована, вона «тікає». Запустіть команду ще раз і покажіть, що число стало меншим.</li>
+      <li>Рядок <b>default via 10.10.0.1</b> з'явився з опції Default-Gateway.</li>
+      <li><b>nameserver 10.10.0.53</b> з'явився з опції DNS. Саме цим сервером користуватиметься частина B.</li>
+      <li>Маршрут <code>10.10.0.0/24 … proto kernel</code> ядро додало саме, з адреси та маски.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="a6">
+    <div class="step-h"><span class="num">A6</span><h3>Оренда очима сервера і клієнта</h3></div>
+    <div class="term"><div class="term-h"><span>T3 · хост</span></div>
+      <div class="cmd"><code>cat /tmp/netlab/dnsmasq.leases</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>date -u -d @<span class="c">&lt;перше число з рядка&gt;</span></code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>cat /tmp/netlab/laptop.leases</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre><span class="d"># сервер: &lt;коли закінчиться, unix-час&gt; &lt;MAC&gt; &lt;IP&gt; &lt;hostname&gt; &lt;client-id&gt;</span>
+<mark>17xxxxxxxx</mark> 02:00:00:00:00:aa 10.10.0.110 vm *
+
+<span class="d"># клієнт:</span>
+lease {
+  interface "eth0";
+  fixed-address 10.10.0.110;
+  option dhcp-lease-time 120;
+  option routers 10.10.0.1;
+  option domain-name-servers 10.10.0.53;
+  <mark>renew</mark> … ;
+  <mark>rebind</mark> … ;
+  <mark>expire</mark> … ;
+}</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Оренду пам'ятають обидві сторони. Сервер записав: MAC такий-то тримає адресу .110 до такого-то часу. Клієнт записав три моменти: коли продовжувати у свого сервера (renew), коли питати будь-який (rebind) і коли адресу доведеться віддати (expire).»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Перше число в рядку сервера — це момент <b>закінчення</b> оренди в unix-часі. <code>date</code> перекладає його в людський час, і видно, що це «зараз + 2 хв».</li>
+      <li>renew / rebind / expire — це ті самі T1 / T2 / Lease-Time з попереднього кроку.</li>
+      <li>Якщо запускали dhclient без <code>-lf</code>, файл клієнта лежить у <code>/var/lib/dhcp/dhclient.leases</code>.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="a7">
+    <div class="step-h"><span class="num">A7</span><h3>Резервація: принтер завжди .50</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · printer</span></div>
+      <div class="cmd"><code>sudo ip netns exec printer dhclient -v -lf /tmp/netlab/printer.leases -pf /tmp/netlab/dhclient-printer.pid eth0</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre>DHCPACK of 10.10.0.50 from 10.10.0.1
+<mark>bound to 10.10.0.50</mark> -- renewal in ~60 seconds.</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Принтер теж налаштований на DHCP, але отримав .50, а це навіть поза пулом 100–150. Адміністратор прив'язав адресу до MAC принтера. Виходить найкраще з обох світів: адреса стабільна, щоб усі знали, де принтер, а керування централізоване, тобто нічого не треба вписувати вручну на самому пристрої.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Рядок конфігу: <code>dhcp-host=02:00:00:00:00:50,10.10.0.50,printer</code>.</li>
+      <li>Порівняйте зі статичною адресою, налаштованою на самому пристрої: при зміні мережі доведеться ходити до кожного принтера.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="a8">
+    <div class="step-h"><span class="num">A8</span><h3>Продовження оренди (T1)</h3></div>
+    <p class="goal">Приблизно через 50–60 с після Ack із кроку A4 (скільки саме, показує рядок <code>renewal in N seconds</code>) у T2 з'явиться продовження. Нічого не запускайте, просто дивіться на tcpdump.</p>
+    <div class="out"><span class="lbl">T2: tcpdump (приблизно)</span><pre><mark>10.10.0.110</mark>.68 &gt; <mark>10.10.0.1</mark>.67: BOOTP/DHCP, Request from 02:00:00:00:00:aa
+10.10.0.1.67 &gt; 10.10.0.110.68: BOOTP/DHCP, Reply</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Минула половина строку оренди, і клієнт тихо питає свій сервер: "Можна я залишу адресу?". Сервер відповідає Ack, і таймер оренди починається спочатку. Зверніть увагу: тепер це не крик на всю мережу, а пряма розмова, адже обидва вже знають один одного.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Джерело тепер <b>10.10.0.110</b> (не 0.0.0.0), а одержувач <b>10.10.0.1</b> (не broadcast): unicast.</li>
+      <li>Лише два пакети, Request + Ack. Discover і Offer не потрібні.</li>
+      <li>Що буде, якщо сервер вимкнено: о T2 (105 с) буде broadcast Request до будь-якого сервера, а о 120 с адресу буде втрачено.</li>
+    </ul></div>
+    <div class="warn"><span class="lbl">Підказка щодо часу</span><p>Якщо кроки A5–A7 зайняли більше хвилини, продовження вже могло пройти. Прокрутіть вивід T2 угору або дочекайтеся наступного, ще через ~60 с.</p></div>
+  </article>
+
+  <article class="step" id="a9">
+    <div class="step-h"><span class="num">A9</span><h3>Звільнення адреси (Release)</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dhclient -r -v -lf /tmp/netlab/laptop.leases -pf /tmp/netlab/dhclient-laptop.pid eth0</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L ip -4 addr show eth0</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre><mark>DHCPRELEASE of 10.10.0.110</mark> on eth0 to 10.10.0.1 port 67
+<span class="d"># ip addr знову порожній</span></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Ввічливе прощання: "Адреса мені більше не потрібна". Сервер може одразу віддати її комусь іншому. На Release сервер нічого не відповідає. Якщо ноутбук просто закрити кришкою, Release не буде, і адреса звільниться сама, коли мине оренда.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>У T2 один пакет без відповіді.</li>
+      <li>Навіщо короткі оренди: у кав'ярні чи на конференції пристрої приходять і йдуть, і пул не повинен «забиватися».</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="a10">
+    <div class="step-h"><span class="num">A10</span><h3>Перехід до DNS: знову отримати адресу</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dhclient -v -lf /tmp/netlab/laptop.leases -pf /tmp/netlab/dhclient-laptop.pid eth0</code><button class="copy">Копіювати</button></div>
+    </div>
+    <p class="muted" style="font-size:14px">Ctrl+C у T2: tcpdump на router більше не потрібен. dhclient продовжуватиме оренду у фоні.</p>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Адреса є, шлюз є, і DHCP підказав нам DNS-сервер 10.10.0.53. Але людям потрібні імена, а не цифри. Подивімося, як ім'я перетворюється на адресу.»</p></div>
+  </article>
+</section>
+
+<!-- ============ ЧАСТИНА B ============ -->
+<section class="part" id="partB" data-title="Огляд" data-group="Частина B · DNS">
+  <header><span class="eyebrow">Частина B</span><h2>DNS: від імені до адреси</h2></header>
+  <div class="part-intro">
+    <p><b>Головна думка частини:</b> DNS — це розподілена ієрархічна база. Жоден сервер не знає всього, але кожен знає, кого спитати далі. Резолвер проходить цей ланцюжок за нас і кешує відповіді на TTL.</p>
+    <div class="flow"><span class="node">root «.» .11</span><span class="arr">→ знає, хто відповідає за «lab.» →</span><span class="node">tld .12</span><span class="arr">→ знає, хто відповідає за «neoversity.lab» →</span><span class="node">auth .13</span><span class="arr">→ знає відповідь</span></div>
+  </div>
+
+  <article class="step" id="b1">
+    <div class="step-h"><span class="num">B1</span><h3>Перший запит: читаємо відповідь dig</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: <mark>NOERROR</mark>, id: …
+;; flags: <mark>qr rd ra</mark>; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; QUESTION SECTION:
+;www.neoversity.lab.            IN      A
+
+;; ANSWER SECTION:
+www.neoversity.lab.     <mark>60</mark>      IN      A       <mark>10.10.0.80</mark>
+
+;; Query time: <mark>N msec</mark>
+;; SERVER: <mark>10.10.0.53#53</mark>(10.10.0.53) (UDP)</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Читаємо зверху вниз. Статус NOERROR, отже все добре. Питання: A-запис для www.neoversity.lab. Відповідь: 10.10.0.80, і цю відповідь можна пам'ятати 60 секунд. А хто відповів? 10.10.0.53, тобто той самий сервер, який нам видав DHCP. Ось де дві частини лекції з'єднуються.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li><b>SERVER 10.10.0.53</b> узято з <code>/etc/resolv.conf</code>, а той заповнив DHCP.</li>
+      <li><b>flags</b>: <code>qr</code> означає «це відповідь», <code>rd</code> — «клієнт просив рекурсію», <code>ra</code> — «сервер рекурсію вміє». Прапорця <code>aa</code> <b>немає</b>: відповів не власник зони, а посередник. Повернемося до цього в B5.</li>
+      <li><b>60</b> — це TTL. Запам'ятайте Query time, він знадобиться в B4.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b2">
+    <div class="step-h"><span class="num">B2</span><h3>Ієрархія: dig +trace</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig +trace www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (скорочено)</span><pre>.                       IN  NS  <mark>a.root-servers.lab.</mark>
+;; Received … bytes from 10.10.0.53#53(10.10.0.53)
+
+lab.                    IN  NS  <mark>ns.nic.lab.</mark>
+;; Received … bytes from <mark>10.10.0.11</mark>#53(a.root-servers.lab)
+
+neoversity.lab.         IN  NS  <mark>ns1.neoversity.lab.</mark>
+;; Received … bytes from <mark>10.10.0.12</mark>#53(ns.nic.lab)
+
+www.neoversity.lab. 60  IN  A   <mark>10.10.0.80</mark>
+;; Received … bytes from <mark>10.10.0.13</mark>#53(ns1.neoversity.lab)</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Тепер dig сам проходить шлях, який зазвичай проходить резолвер. Корінь каже: "Про www не знаю, але за зону lab. відповідає ns.nic.lab, ось його адреса". TLD-сервер каже: "За neoversity.lab відповідає ns1.neoversity.lab". І тільки третій сервер дає відповідь. Кожен сервер знає тільки свій рівень і того, кому делегував рівень нижче.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Три різні адреси «Received from»: <b>.11 → .12 → .13</b>.</li>
+      <li>Відповідь кореня — це <b>referral</b> (направлення): у ній немає відповіді, тільки NS і «клейовий» A-запис (glue), щоб було куди йти далі.</li>
+      <li>Ім'я читається <b>справа наліво</b>: «.» → lab → neoversity → www.</li>
+      <li>У справжньому інтернеті так само, тільки коренів 13 імен (сотні серверів через anycast), а TLD — це .com, .ua, .org…</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b3">
+    <div class="step-h"><span class="num">B3</span><h3>Рекурсія та ітерації на дроті</h3></div>
+    <p class="goal">Спершу очистіть кеш резолвера, інакше він відповість одразу з пам'яті.</p>
+    <div class="term"><div class="term-h"><span>T3 · хост</span></div>
+      <div class="cmd"><code>sudo ip netns exec resolver unbound-control -c /tmp/netlab/unbound.conf reload</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>T2 · resolver (залиште працювати)</span></div>
+      <div class="cmd"><code>sudo ip netns exec resolver tcpdump -n -i eth0 'udp port 53'</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig mail.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">T2: tcpdump (приблизно; можуть бути додаткові запити)</span><pre>10.10.0.110 &gt; 10.10.0.53.53: 1234<mark>+</mark> A? mail.neoversity.lab.     <span class="d">← клієнт: «знайди мені»</span>
+10.10.0.53 &gt; <mark>10.10.0.11</mark>.53: … A? mail.neoversity.lab.      <span class="d">← до кореня</span>
+10.10.0.11.53 &gt; 10.10.0.53: … 0/1/2                        <span class="d">← направлення на lab.</span>
+10.10.0.53 &gt; <mark>10.10.0.12</mark>.53: … A? mail.neoversity.lab.      <span class="d">← до TLD</span>
+10.10.0.12.53 &gt; 10.10.0.53: … 0/1/2                        <span class="d">← направлення на neoversity.lab</span>
+10.10.0.53 &gt; <mark>10.10.0.13</mark>.53: … A? mail.neoversity.lab.      <span class="d">← до authoritative</span>
+10.10.0.13.53 &gt; 10.10.0.53: …<mark>*</mark>- 1/1/2 A 10.10.0.25          <span class="d">← відповідь</span>
+10.10.0.53.53 &gt; 10.10.0.110: 1234 1/0/1 A <mark>10.10.0.25</mark>       <span class="d">← клієнту</span></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Ноутбук поставив <b>одне</b> питання і чекає готову відповідь: це рекурсивний запит. Резолвер за нього зробив <b>три ітерації</b>, обійшов корінь, TLD і authoritative, а потім віддав результат. Клієнт про ці кроки нічого не знає.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li><code>+</code> після ID у запиті клієнта означає прапорець RD («зроби рекурсію»). У запитах резолвера до серверів плюса немає: це ітеративні запити. (<code>%</code> там — прапорець CD, тут він не важливий.)</li>
+      <li><code>*</code> у відповіді від .13 означає <b>authoritative answer</b>; <code>-</code> — сервер не підтримує рекурсію (у конфігу BIND <code>recursion no</code>).</li>
+      <li><code>0/1/2</code> = 0 відповідей / 1 запис у authority (NS) / 2 additional (glue + EDNS): так виглядає направлення.</li>
+      <li>У лабораторії вимкнено QNAME minimisation, тому корінь бачить повне ім'я. Реальні резолвери часто показують кореню тільки «lab.», щоб берегти приватність.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b4">
+    <div class="step-h"><span class="num">B4</span><h3>Кеш: той самий запит двічі</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop (T2 продовжує слухати)</span></div>
+      <div class="cmd"><code>$L dig www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre><span class="d"># перший раз</span>
+www.neoversity.lab.     <mark>60</mark>      IN  A  10.10.0.80
+;; Query time: 1 msec
+
+<span class="d"># другий раз, через 10 секунд</span>
+www.neoversity.lab.     <mark>50</mark>      IN  A  10.10.0.80
+;; Query time: 1 msec   <span class="d">← у лабораторії все локально, тож час однаковий</span></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Другий раз резолвер нікуди не ходив: у T2 видно тільки запит від ноутбука і відповідь йому. А TTL зменшився: це зворотний відлік, скільки ще секунд запис житиме в кеші. Коли дійде до нуля, резолвер знову піде до authoritative.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>У T2 видно <b>2 пакети замість 4+</b>.</li>
+      <li><b>TTL, що зменшується</b>, — головна ознака відповіді з кешу.</li>
+      <li>Кеш — причина, з якої DNS витримує навантаження інтернету, і водночас причина, з якої зміни «поширюються» не миттєво (див. B13).</li>
+    </ul></div>
+    <p class="muted" style="font-size:14px">Після цього кроку можна зупинити tcpdump у T2 (Ctrl+C).</p>
+  </article>
+
+  <article class="step" id="b5">
+    <div class="step-h"><span class="num">B5</span><h3>Спитати власника зони напряму (aa)</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig @10.10.0.13 www.neoversity.lab +norec</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>;; flags: qr <mark>aa</mark>; QUERY: 1, ANSWER: 1, AUTHORITY: 1, ADDITIONAL: 2
+;; ANSWER SECTION:
+www.neoversity.lab.     <mark>60</mark>      IN  A   10.10.0.80
+;; AUTHORITY SECTION:
+neoversity.lab.         3600    IN  NS  ns1.neoversity.lab.
+;; SERVER: <mark>10.10.0.13</mark>#53(10.10.0.13) (UDP)</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Тепер питаємо не посередника, а власника зони. Прапорець <b>aa</b>, authoritative answer, означає "я не переказую чужі слова, це мої дані". І TTL завжди рівно 60, бо сервер не кешує, а читає з файла зони.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Порівняйте з B1: там <code>rd ra</code> без <code>aa</code>, тут <code>aa</code> без <code>ra</code>.</li>
+      <li><code>@сервер</code> у dig — найкращий інструмент діагностики: «а що каже сам власник?».</li>
+      <li>Без <code>+norec</code> dig попередить: <i>recursion requested but not available</i>.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b6">
+    <div class="step-h"><span class="num">B6</span><h3>UDP → TCP: завелика відповідь</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig big.neoversity.lab TXT +bufsize=512</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>;; <mark>Truncated, retrying in TCP mode.</mark>
+<span class="d">…</span>
+big.neoversity.lab. 3600 IN TXT "k=00-xxxx…" "k=01-xxxx…" <span class="d">… (16 рядків)</span>
+;; MSG SIZE  rcvd: <mark>~1600</mark>
+;; SERVER: 10.10.0.53#53(10.10.0.53) (<mark>TCP</mark>)</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Ми сказали серверу: "Я приймаю UDP-відповіді не більше 512 байт". А запис важить близько 1,6 КБ. Сервер відповідає коротко, з прапорцем TC (truncated, "не влізло"), і dig сам повторює запит через TCP на тому самому порту 53.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Рядок <b>Truncated, retrying in TCP mode</b> і <b>(TCP)</b> у рядку SERVER.</li>
+      <li>У записі <code>neoversity-lab.pcap</code> видно, що те саме сталося <b>двічі</b>: між резолвером і authoritative (UDP-ліміт Unbound ~1232 байти), а потім між ноутбуком і резолвером. У tcpdump прапорець TC позначено як <code>|</code>.</li>
+      <li>Практичний висновок: <b>DNS — це не лише UDP</b>. Якщо фаєрвол блокує tcp/53, великі відповіді (DNSSEC, довгі TXT) ламаються.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b7">
+    <div class="step-h"><span class="num">B7</span><h3>Типи записів</h3></div>
+    <p class="goal">Запускайте по одній команді й коментуйте. Усі вони виконуються в laptop.</p>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig shop.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig www.neoversity.lab AAAA +short</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig neoversity.lab MX</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig neoversity.lab TXT</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig _dmarc.neoversity.lab TXT +short</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig neoversity.lab NS</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig neoversity.lab SOA</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig neoversity.lab CAA</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig _http._tcp.api.neoversity.lab SRV</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig -x 10.10.0.80</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Запис</th><th>Відповідь</th><th>Що сказати</th></tr></thead>
+      <tbody>
+        <tr><td><b>CNAME</b></td><td><code>shop → www.neoversity.lab → 10.10.0.80</code></td><td>Псевдонім: «shop — це інша назва www». Резолвер сам іде далі й повертає обидва записи.</td></tr>
+        <tr><td><b>AAAA</b></td><td><code>fd00:10::80</code></td><td>Те саме, що A, але для IPv6. Одне ім'я може мати обидва.</td></tr>
+        <tr><td><b>MX</b></td><td><code>10 mail</code>, <code>20 backup-mail</code></td><td>Куди доставляти пошту для @neoversity.lab. <b>Менше число означає вищий пріоритет</b>; 20 — запасний сервер.</td></tr>
+        <tr><td><b>TXT</b></td><td><code>v=spf1 mx -all</code>, <code>neo-site-verification=…</code></td><td>Довільний текст. На практиці це SPF (хто має право слати пошту від домену) і підтвердження власності для Google, Microsoft тощо.</td></tr>
+        <tr><td><b>TXT _dmarc</b></td><td><code>v=DMARC1; p=reject; …</code></td><td>Політика: що робити з листами, які не пройшли перевірку. Тут «відхиляти».</td></tr>
+        <tr><td><b>NS</b></td><td><code>ns1.neoversity.lab.</code></td><td>Хто є authoritative для зони, той самий сервер, на який вказав TLD у B2.</td></tr>
+        <tr><td><b>SOA</b></td><td><code>ns1… admin… 2026102701 3600 900 604800 300</code></td><td>«Паспорт» зони: головний сервер, контакт адміністратора, <b>serial</b> (версія), таймери для вторинних серверів і <b>300</b>, тобто скільки кешувати «такого імені немає» (B9).</td></tr>
+        <tr><td><b>CAA</b></td><td><code>0 issue "letsencrypt.org"</code></td><td>Якому центру сертифікації дозволено видавати TLS-сертифікати для домену.</td></tr>
+        <tr><td><b>SRV</b></td><td><code>10 5 80 api.neoversity.lab.</code></td><td>Пріоритет, вага, <b>порт</b> і хост сервісу. Тільки цей тип записів містить порт.</td></tr>
+        <tr><td><b>PTR</b></td><td><code>80.0.10.10.in-addr.arpa → www.neoversity.lab.</code></td><td>Зворотний пошук: з IP на ім'я. Адреса пишеться задом наперед у спеціальній зоні in-addr.arpa.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«DNS — це не просто "ім'я → IP". Це типізована база даних про домен: де пошта, хто може випускати сертифікати, на якому порту сервіс, хто власник зони.»</p></div>
+  </article>
+
+  <article class="step" id="b8">
+    <div class="step-h"><span class="num">B8</span><h3>nslookup</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L nslookup shop.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L nslookup -type=mx neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>Server:         10.10.0.53
+Address:        10.10.0.53#53
+
+<mark>Non-authoritative answer:</mark>
+shop.neoversity.lab     <mark>canonical name</mark> = www.neoversity.lab.
+Name:   www.neoversity.lab
+Address: 10.10.0.80</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«nslookup — старший брат dig. Він є навіть у Windows, тож у колег без Linux саме він буде під рукою. Вивід простіший, але суть та сама.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul><li><b>Non-authoritative answer</b> — те саме, що відсутність <code>aa</code> у dig: відповідь прийшла від резолвера, а не від власника.</li></ul></div>
+  </article>
+
+  <article class="step" id="b9">
+    <div class="step-h"><span class="num">B9</span><h3>NXDOMAIN: такого імені немає</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig nope.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: <mark>NXDOMAIN</mark>, id: …
+;; flags: qr rd ra; QUERY: 1, <mark>ANSWER: 0</mark>, AUTHORITY: 1, ADDITIONAL: 1
+
+;; AUTHORITY SECTION:
+neoversity.lab.  <mark>300</mark>  IN  SOA  ns1.neoversity.lab. admin.neoversity.lab. 2026102701 3600 900 604800 <mark>300</mark></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Статус NXDOMAIN: такого імені не існує. Зверніть увагу, що у відповіді прийшов SOA зони. Його останнє число, 300, означає: "пам'ятай, що цього імені немає, 5 хвилин". Це негативний кеш.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>NXDOMAIN (ім'я не існує) — це не те саме, що NOERROR з порожньою відповіддю (ім'я є, але запису такого типу немає).</li>
+      <li>Практична пастка: якщо відкрити сайт <i>до</i> створення запису, резолвер ще до 5 хв відповідатиме «немає».</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b10">
+    <div class="step-h"><span class="num">B10</span><h3>/etc/hosts сильніший за DNS</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>echo '10.10.0.81 www.neoversity.lab' | sudo tee -a /etc/netns/laptop/hosts</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L getent ahostsv4 www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig +short www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L curl http://www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre><span class="d"># getent (як резолвить система):</span>
+<mark>10.10.0.81</mark>      STREAM www.neoversity.lab
+<span class="d"># dig (питає DNS напряму):</span>
+<mark>10.10.0.80</mark>
+<span class="d"># curl:</span>
+<mark>відповідає api1 (10.10.0.81)</mark></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Ми дописали один рядок у файл hosts ноутбука. dig досі каже .80, бо dig завжди питає DNS-сервер напряму. Але браузер, curl і будь-яка звичайна програма спершу дивляться у файл hosts і тільки потім у DNS. Тому curl потрапив зовсім на інший сервер. Класична ситуація на співбесіді й у підтримці: "dig показує правильно, а сайт не той".»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Порядок задає <code>/etc/nsswitch.conf</code>, рядок <code>hosts: files dns</code>.</li>
+      <li><b>getent</b> показує, як резолвить система; <b>dig</b> — що каже DNS. Для діагностики дивіться обидва.</li>
+      <li>hosts — найстаріший механізм: до DNS увесь «інтернет» був одним таким файлом (HOSTS.TXT).</li>
+    </ul></div>
+    <div class="warn"><span class="lbl">Обов'язково приберіть рядок</span><p>Інакше наступні кроки покажуть .81 замість www:</p>
+      <div class="term" style="margin-top:6px"><div class="cmd"><code>sudo sed -i '/neoversity.lab/d' /etc/netns/laptop/hosts</code><button class="copy">Копіювати</button></div></div>
+    </div>
+  </article>
+
+  <article class="step" id="b11">
+    <div class="step-h"><span class="num">B11</span><h3>Round Robin: одне ім'я, три сервери</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L dig +short api.neoversity.lab</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>for i in 1 2 3 4 5 6; do $L curl -s http://api.neoversity.lab; done</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (порядок змінюється)</span><pre><span class="d"># dig, запуск 1        # dig, запуск 2</span>
+10.10.0.81             10.10.0.82
+10.10.0.82             10.10.0.83
+10.10.0.83             10.10.0.81
+
+відповідає api2 (10.10.0.82)
+відповідає api3 (10.10.0.83)
+відповідає api1 (10.10.0.81)
+<span class="d">…</span></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Під ім'ям api три A-записи, і резолвер щоразу перемішує їхній порядок. Клієнти зазвичай беруть першу адресу, тож навантаження розподіляється. Це найпростіший балансувальник, але він сліпий: якщо api2 впаде, DNS однаково його роздаватиме.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>TTL у api лише <b>30</b> с: короткий TTL дозволяє швидко прибрати сервер із ротації.</li>
+      <li>Ротацію робить резолвер (<code>rrset-roundrobin: yes</code> в Unbound), а не authoritative.</li>
+    </ul></div>
+    <div class="warn"><span class="lbl">Якщо curl щоразу потрапляє в той самий api</span><p>Ймовірно, бібліотека resolver системи сортує адреси (RFC 6724) і «з'їдає» ротацію. Це теж корисний висновок: DNS round robin не гарантує рівномірного розподілу. Покажіть ротацію через <code>dig +short</code>.</p></div>
+  </article>
+
+  <article class="step" id="b12">
+    <div class="step-h"><span class="num">B12</span><h3>Від імені до сторінки</h3></div>
+    <div class="term"><div class="term-h"><span>T1 · laptop</span></div>
+      <div class="cmd"><code>$L curl -v http://shop.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо (приблизно)</span><pre>*   Trying <mark>10.10.0.80:80</mark>...
+* Connected to shop.neoversity.lab (10.10.0.80) port 80
+&gt; GET / HTTP/1.1
+&gt; <mark>Host: shop.neoversity.lab</mark>
+&lt; HTTP/1.0 <mark>200 OK</mark>
+<span class="d">…</span>
+<mark>Привіт з www.neoversity.lab (10.10.0.80)</mark></pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Збираємо всю лекцію в одну команду. DHCP дав ноутбуку адресу, шлюз і DNS-сервер. DNS перетворив shop на CNAME www, а www на 10.10.0.80. Далі TCP-рукостискання на порт 80 і HTTP-запит. Усе, що відбувається, коли ви набираєте адресу в браузері, ми щойно побачили по шматочках.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li><b>Host: shop…</b>: браузер передає серверу ім'я, яке набрав користувач, навіть якщо DNS привів на www. Саме так один сервер обслуговує багато сайтів.</li>
+      <li>Увесь ланцюжок DORA → DNS → TCP → HTTP є в записі <code>neoversity-lab.pcap</code>, і його можна показати у Wireshark.</li>
+    </ul></div>
+  </article>
+
+  <article class="step" id="b13">
+    <div class="step-h"><span class="num">B13</span><h3>«Поширення» змін DNS = кеш і TTL</h3></div>
+    <p class="goal">Порядок важливий: спершу «прогріваємо» кеш старою адресою, потім змінюємо зону.</p>
+    <div class="term"><div class="term-h"><span>1 · laptop: заповнити кеш</span></div>
+      <div class="cmd"><code>$L dig +short www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>2 · хост: змінити www на .90 і підняти serial</span></div>
+      <div class="cmd"><code>sudo sed -i -e '/^www .* IN A /s/10\.10\.0\.80/10.10.0.90/' -e 's/2026102701/2026102702/' /tmp/netlab/auth/neoversity.lab.zone</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>grep -E '^www|SOA' /tmp/netlab/auth/neoversity.lab.zone</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>3 · хост: перезапустити authoritative</span></div>
+      <div class="cmd"><code>sudo kill $(cat /tmp/netlab/auth/named.pid); sudo ip netns exec auth named -c /tmp/netlab/auth/named.conf -u root</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="term"><div class="term-h"><span>4 · laptop: порівняти</span></div>
+      <div class="cmd"><code>$L dig @10.10.0.13 www.neoversity.lab +short</code><button class="copy">Копіювати</button></div>
+      <div class="cmd"><code>$L dig www.neoversity.lab</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre><span class="d"># authoritative:</span>
+<mark>10.10.0.90</mark>
+<span class="d"># через резолвер (поки не мине TTL):</span>
+www.neoversity.lab.  <mark>23</mark>  IN  A  <mark>10.10.0.80</mark>
+<span class="d"># через ≤ 60 с ще раз:</span>
+www.neoversity.lab.  60  IN  A  10.10.0.90</pre></div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Власник зони вже віддає нову адресу, а резолвер упевнено віддає стару, бо вона в нього в кеші ще 23 секунди. Те, що називають "DNS поширюється до 48 годин", насправді не поширення, а очікування, поки в усіх резолверах світу закінчиться TTL старого запису.»</p></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul>
+      <li>Дві команди, дві різні відповіді: <b>authoritative знає правду, кеш її ще не знає</b>.</li>
+      <li>Порада з практики: за добу до міграції знизити TTL (наприклад, до 60 с), переїхати, потім повернути TTL назад.</li>
+      <li><b>Serial</b> треба збільшувати при кожній зміні, інакше вторинні DNS-сервери не заберуть нову версію зони.</li>
+      <li>На 10.10.0.90 нікого немає, тож <code>curl www</code> тепер не відповість. Це показує, що «сайт упав» може бути помилкою DNS.</li>
+    </ul></div>
+  </article>
+</section>
+
+<!-- ============ WIRESHARK ============ -->
+<section class="part" id="ws" data-title="Wireshark і записи" data-group="Завершення">
+  <header><span class="eyebrow">Додатково / резервний план</span><h2>Wireshark і готові записи</h2></header>
+
+  <article class="step" id="w1">
+    <div class="step-h"><span class="num">W1</span><h3>Записати власний трафік</h3></div>
+    <div class="term"><div class="term-h"><span>T2 · хост (br-lab бачить усіх)</span></div>
+      <div class="cmd"><code>sudo tcpdump -i br-lab -w my-lab.pcap 'port 67 or port 68 or port 53 or port 80'</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="say"><span class="lbl">Що сказати</span><p>«Слухаємо на комутаторі, тому бачимо розмови всіх комп'ютерів одразу. Файл можна відкрити у Wireshark на будь-якій системі.»</p></div>
+  </article>
+
+  <article class="step" id="w2">
+    <div class="step-h"><span class="num">W2</span><h3>Готові записи в архіві</h3></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Файл</th><th>Що всередині</th></tr></thead>
+      <tbody>
+        <tr><td><code>dhcp-dora.pcap</code></td><td>6 пакетів: 2 Discover (повтор через ~2,6 с), 2 Offer, Request, Ack. Усі опції з кроку A4.</td></tr>
+        <tr><td><code>neoversity-lab.pcap</code></td><td>Уся історія: DORA → <code>www</code> (перший раз через authoritative, другий раз з кешу) → MX → <code>shop</code> CNAME → <code>dig +trace</code> (.11 → .12 → .13) → <code>big</code> TXT з TC і повтором по TCP → HTTP GET <code>shop</code> → 200 OK.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="warn"><span class="lbl">Резервний план</span><p>Якщо VM не запустилась, пройдіть обидві частини по цих записах у Wireshark: репліки з кроків вище підходять майже дослівно.</p></div>
+  </article>
+
+  <article class="step" id="w3">
+    <div class="step-h"><span class="num">W3</span><h3>Корисні фільтри Wireshark</h3></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Фільтр</th><th>Показує</th></tr></thead>
+      <tbody>
+        <tr><td><code>dhcp</code></td><td>увесь DHCP (у старому Wireshark — <code>bootp</code>)</td></tr>
+        <tr><td><code>dhcp.option.dhcp == 2</code></td><td>тільки Offer (1 Discover, 2 Offer, 3 Request, 5 Ack, 7 Release)</td></tr>
+        <tr><td><code>dns</code></td><td>увесь DNS</td></tr>
+        <tr><td><code>dns.flags.response == 0</code></td><td>тільки запити</td></tr>
+        <tr><td><code>dns.flags.truncated == 1</code></td><td>відповіді з TC, тобто момент переходу на TCP</td></tr>
+        <tr><td><code>tcp.port == 53</code></td><td>DNS поверх TCP</td></tr>
+        <tr><td><code>dns.qry.name == "shop.neoversity.lab"</code></td><td>усе про одне ім'я</td></tr>
+        <tr><td><code>http</code></td><td>HTTP-запит і відповідь</td></tr>
+      </tbody>
+    </table></div>
+    <div class="hl"><span class="lbl">Що підсвітити</span><ul><li>У Wireshark: ПКМ на DNS-пакеті → <b>Follow → UDP Stream</b>, а для DHCP розгорніть дерево <b>Options</b>. Це наочніше за текстовий вивід.</li></ul></div>
+  </article>
+</section>
+
+<!-- ============ ПРИБИРАННЯ ============ -->
+<section class="part" id="end" data-title="Прибирання" data-group="Завершення">
+  <header><span class="eyebrow">Після заняття</span><h2>Прибирання</h2></header>
+  <article class="step" id="z1">
+    <div class="step-h"><span class="num">Z1</span><h3>Зупинити все</h3></div>
+    <div class="term"><div class="term-h"><span>T3 · хост</span></div>
+      <div class="cmd"><code>sudo bash lab-down.sh</code><button class="copy">Копіювати</button></div>
+    </div>
+    <div class="out"><span class="lbl">Очікуємо</span><pre>Прибрано.</pre></div>
+    <p class="muted" style="font-size:14px">Скрипт зупиняє BIND, Unbound, dnsmasq, dhclient і вебсервери, видаляє namespace'и, <code>/etc/netns/*</code>, br-lab і <code>/tmp/netlab</code>. Ваш власний <code>my-lab.pcap</code> залишиться.</p>
+    <div class="say"><span class="lbl">Підсумок для аудиторії</span><p>«DHCP відповідає на питання "хто я в цій мережі і куди мені ходити", а DNS — "де знаходиться той, кого я шукаю". Обидва протоколи прості, обидва на UDP, і без обох ви не відкриєте жодного сайту.»</p></div>
+  </article>
+</section>
+
+</main>
+</div>
+</div>
+
+<script>
+(() => {
+  const KEY = 'dnsdhcp-lab-done', THEME = 'dnsdhcp-lab-theme';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  let done = {};
+  try { done = JSON.parse(store.get(KEY) || '{}') || {}; } catch (e) { done = {}; }
+
+  const steps = [...document.querySelectorAll('.step')];
+  const nav = document.getElementById('nav');
+  const links = new Map();
+
+  // Nav: groups → section heads → steps
+  let lastGroup = null;
+  document.querySelectorAll('section.part').forEach(sec => {
+    const g = sec.dataset.group;
+    if (g !== lastGroup) {
+      const h = document.createElement('div'); h.className = 'grp'; h.textContent = g; nav.appendChild(h); lastGroup = g;
+    }
+    sec.querySelectorAll(':scope > .step').forEach(st => {
+      const a = document.createElement('a');
+      a.href = '#' + st.id;
+      a.innerHTML = '<span class="n"></span><span class="t"></span>';
+      a.querySelector('.n').textContent = st.querySelector('.num').textContent;
+      a.querySelector('.t').textContent = st.querySelector('h3').textContent;
+      nav.appendChild(a); links.set(st.id, a);
+    });
+  });
+
+  // Checkboxes
+  steps.forEach(st => {
+    const lab = document.createElement('label'); lab.className = 'check';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!done[st.id];
+    lab.append(cb, document.createTextNode('Показано'));
+    st.querySelector('.step-h').appendChild(lab);
+    cb.addEventListener('change', () => { done[st.id] = cb.checked; save(); render(); });
+  });
+  function save() { store.set(KEY, JSON.stringify(done)); }
+  function render() {
+    let n = 0;
+    steps.forEach(st => {
+      const d = !!done[st.id]; if (d) n++;
+      st.classList.toggle('done', d);
+      st.querySelector('.check input').checked = d;
+      links.get(st.id)?.classList.toggle('is-done', d);
+    });
+    document.getElementById('progText').textContent = `${n} / ${steps.length}`;
+    document.getElementById('barFill').style.width = (100 * n / steps.length) + '%';
+  }
+  document.getElementById('resetBtn').addEventListener('click', () => { done = {}; save(); render(); });
+  render();
+
+  // Copy buttons
+  document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+    const text = b.parentElement.querySelector('code').textContent;
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e2) {} ta.remove();
+    }
+    b.textContent = 'Скопійовано'; b.classList.add('ok');
+    setTimeout(() => { b.textContent = 'Копіювати'; b.classList.remove('ok'); }, 1400);
+  }));
+
+  // Theme
+  const root = document.documentElement;
+  function setTheme(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    document.querySelectorAll('[data-theme-btn]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeBtn === t)));
+    store.set(THEME, t);
+  }
+  document.querySelectorAll('[data-theme-btn]').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.themeBtn)));
+  setTheme(store.get(THEME) || 'auto');
+
+  // Current step (closest to top of viewport)
+  function currentIndex() {
+    let idx = 0;
+    steps.forEach((st, i) => { if (st.getBoundingClientRect().top <= 120) idx = i; });
+    return idx;
+  }
+  function markActive() {
+    const cur = steps[currentIndex()];
+    links.forEach((a, id) => a.classList.toggle('active', id === cur.id));
+  }
+  document.addEventListener('scroll', markActive, { passive: true });
+  markActive();
+
+  // Keyboard: J/K next/prev, X toggle current
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea/i.test(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    const i = currentIndex();
+    if (k === 'j' || k === 'о') { steps[Math.min(i + 1, steps.length - 1)].scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else if (k === 'k' || k === 'л') { steps[Math.max(i - 1, 0)].scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else if (k === 'x' || k === 'ч') { const id = steps[i].id; done[id] = !done[id]; save(); render(); }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Повторні передачі TCP</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1f2328; --muted: #5d6670; --line: #dcd8cf;
+  --code-bg: #f1eee7; --accent: #1d5fa8;
+  --em-bg: #e8f1fb; --em-line: #1d5fa8;
+  --warn-bg: #fdf1e2; --warn-line: #b86200;
+  --mark: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181b; --fg: #e4e6e8; --muted: #9aa3ad; --line: #33373d;
+    --code-bg: #202328; --accent: #7fb2ec;
+    --em-bg: #172535; --em-line: #5b9be0;
+    --warn-bg: #2d2214; --warn-line: #e09a45;
+    --mark: #f08a80;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; overflow-x: hidden; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; overflow-x: auto; max-width: 100%;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.n { color: var(--mark); font-weight: 600; }
+.c { color: var(--muted); }
+.box { border-left: 4px solid; border-radius: 6px; padding: 10px 14px; margin: 16px 0; }
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+.em { background: var(--em-bg); border-color: var(--em-line); }
+.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+.box b.t { display: block; margin-bottom: 4px; }
+.tw { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.r { text-align: right; font-variant-numeric: tabular-nums; }
+nav ol { padding-left: 20px; }
+dl dt { font-weight: 600; margin-top: 10px; }
+dl dd { margin: 2px 0 0 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Демо 2. Повторні передачі у Wireshark</h1>
+<p class="sub">Тема 4 (TCP, UDP та порти). Слайд «Два способи помітити втрату», вправа 3. Тека <code>ports/02-retransmissions/</code>, порт 9102.</p>
+
+<p>Суть: у Linux-контейнері на <code>lo</code> вмикаємо 5% випадкових втрат і 5 мс затримки в кожен бік (<code>tc netem</code>), <code>curl</code> завантажує файл 2 МБ, <code>tcpdump</code> пише pcap. Wireshark сам підписує обидва способи помітити втрату: <b>дубльовані ACK → швидкий повтор</b> (≈ 1 RTT) і <b>таймер RTO</b> (≥ 200 мс у Linux).</p>
+
+<nav><ol>
+  <li><a href="#run">Як запустити</a></li>
+  <li><a href="#out">Що означає вивід</a></li>
+  <li><a href="#say">На чому наголосити</a></li>
+</ol></nav>
+
+<!-- ============================================================ -->
+<h2 id="run">1. Як запустити</h2>
+
+<h3>Перед парою</h3>
+<ul>
+  <li><b>Docker</b> (на macOS: Docker Desktop). sudo не потрібен.</li>
+  <li><b>Образ збирається один раз і потребує інтернету</b> (≈ 1–2 хв). Запустіть <code>./run_demo.sh</code> один раз удома; на парі він працює ≈ 10 с без мережі. Перевірка: <code>docker image ls demo02-retrans</code>.</li>
+  <li><b>Wireshark</b> на Mac (на цьому Mac уже є в <code>/Applications</code>; інакше <code>brew install --cask wireshark</code>). Відкрити pcap можна без sudo.</li>
+  <li>Корисно у Wireshark: Preferences → Protocols → TCP → <i>Calculate conversation timestamps</i>, щоб мати поле <code>tcp.time_delta</code> (пауза від попереднього кадру з'єднання).</li>
+</ul>
+
+<h3>Варіант А: одна команда (macOS або Linux)</h3>
+<pre><code>cd ports/02-retransmissions
+./run_demo.sh                    <span class="c"># 5% втрат, 2 МБ, SACK увімкнено → capture.pcap</span>
+open -a Wireshark capture.pcap   <span class="c"># macOS;  Linux: wireshark capture.pcap &amp;</span></code></pre>
+<p>Скрипт сам будує образ (якщо його немає), запускає контейнер <code>demo02-retrans</code> з <code>--cap-add NET_ADMIN</code>, усередині виконує <code>inside.sh</code> і друкує чотири блоки: налаштування <code>lo</code>, завантаження, лічильники ядра (<code>nstat</code>), підсумок «як побачить Wireshark» (<code>analyze.py</code>). Тека змонтована в контейнер, тому <code>capture.pcap</code> одразу з'являється поруч.</p>
+
+<p>Змінні середовища (перевірено в <code>run_demo.sh</code> / <code>inside.sh</code>):</p>
+<div class="tw"><table>
+<tr><th>Змінна</th><th>За замовч.</th><th>Навіщо</th></tr>
+<tr><td><code>LOSS</code></td><td><code>5%</code></td><td><code>LOSS=10% ./run_demo.sh</code>: RTO майже гарантовано</td></tr>
+<tr><td><code>SACK</code></td><td><code>1</code></td><td><code>SACK=0</code>: класичні дублі ACK без SLE/SRE (Reno)</td></tr>
+<tr><td><code>DELAY</code></td><td><code>5ms</code></td><td>затримка в кожен бік, RTT ≈ 2 × DELAY</td></tr>
+<tr><td><code>MTU</code></td><td><code>1500</code></td><td><code>MTU=65536</code>: показати, чому знизили MTU (подій майже немає)</td></tr>
+<tr><td><code>SIZE_KB</code></td><td><code>2048</code></td><td>розмір файлу</td></tr>
+<tr><td><code>PCAP</code></td><td><code>capture.pcap</code></td><td>ім'я результату, напр. <code>SACK=0 PCAP=nosack.pcap ./run_demo.sh</code></td></tr>
+<tr><td><code>PORT</code></td><td><code>9102</code></td><td>існує лише в мережевому просторі контейнера, конфліктів із хостом не буде</td></tr>
+</table></div>
+
+<p>Аналіз pcap можна запустити й на самому Mac (бере <code>tshark</code> з Wireshark.app, перевірено з 4.6.9):</p>
+<pre><code>python3 analyze.py sample_sack.pcap
+python3 analyze.py capture.pcap --tshark /Applications/Wireshark.app/Contents/MacOS/tshark</code></pre>
+<p>Ключі <code>analyze.py</code>: <code>--examples N</code> (скільки прикладів показати, 4), <code>--rto-gap 0.2</code> (поріг паузи, після якої повтор вважаємо RTO).</p>
+
+<h3>Варіант Б: крок за кроком на очах у студентів (Docker)</h3>
+<p>Ті самі кроки, що в <code>inside.sh</code>, але вручну. Цю послідовність проганяли під час підготовки (розділ E у <code>expected_output.txt</code>).</p>
+<pre><code><span class="c"># термінал 1: довгоживучий контейнер, «ламаємо» його loopback</span>
+docker run -d --rm --name demo02-live --cap-add NET_ADMIN -v "$PWD":/demo demo02-retrans sleep infinity
+docker exec demo02-live bash -c '
+  ip link set lo mtu 1500
+  ethtool -K lo tso off gso off gro off
+  ip link set lo gso_max_segs 1
+  tc qdisc add dev lo root netem delay 5ms loss 5%
+  tc qdisc show dev lo
+  mkdir -p /srv &amp;&amp; head -c 2M /dev/urandom &gt; /srv/file.bin'
+docker exec -d demo02-live python3 -m http.server 9102 --bind 127.0.0.1 --directory /srv
+docker exec -d demo02-live tcpdump -i lo -n -U -w /demo/live.pcap 'tcp port 9102'
+
+<span class="c"># термінал 2: «позначки Wireshark» наживо, лише цікаві кадри</span>
+docker exec -it demo02-live tshark -l -i lo -f 'tcp port 9102' \
+    -Y 'tcp.analysis.flags &amp;&amp; !tcp.analysis.window_update'
+
+<span class="c"># термінал 1: завантаження (прогрес curl «завмирає» на RTO)</span>
+docker exec demo02-live curl -o /dev/null http://127.0.0.1:9102/file.bin
+docker exec demo02-live nstat -z TcpRetransSegs TcpExtTCPFastRetrans TcpExtTCPTimeouts
+
+<span class="c"># кінець</span>
+docker exec demo02-live pkill tcpdump
+open -a Wireshark live.pcap
+docker rm -f demo02-live</code></pre>
+
+<div class="warn box">
+<b class="t">Увага: macOS</b>
+<ul>
+  <li>На macOS немає <code>tc</code>/<code>netem</code>. Аналоги (dummynet <code>dnctl</code> + <code>pfctl</code>, Network Link Conditioner) потребують sudo і <b>не перевірялися</b>, тому демо працює в Docker.</li>
+  <li>Docker Desktop запускає Linux-VM (ядро 6.12.76-linuxkit), тож студенти бачать <b>TCP Linux</b>, а не стек macOS.</li>
+  <li><code>netstat -s -p tcp</code> на Mac без sudo показав одні нулі. Лічильники беріть з <code>nstat</code> у контейнері.</li>
+  <li>Варіант на «голому» Linux з sudo (ті самі команди на <code>lo</code> хоста) <b>не тестувався</b>; він сповільнює весь loopback машини, доки не відкотите <code>tc qdisc del dev lo root</code> тощо.</li>
+</ul>
+</div>
+
+<h3>Якщо щось пішло не так</h3>
+<dl>
+  <dt><code>docker build</code> довго або падає</dt>
+  <dd>Немає інтернету. Образ треба зібрати до пари.</dd>
+  <dt>«RTO цього разу не спрацював»</dt>
+  <dd>Втрати випадкові, із SACK буває 0 таймаутів. Повторіть або <code>LOSS=10% ./run_demo.sh</code> (у трьох тестових запусках 2–16 RTO).</dd>
+  <dt>Завантаження ≈ 1 с стоїть на початку</dt>
+  <dd>Загубився SYN або SYN-ACK: початковий таймаут SYN = 1 с. Це третій вид RTO, варто показати.</dd>
+  <dt>«УВАГА: tcpdump пропустив пакети»</dt>
+  <dd>pcap неповний, числа будуть дивні. Перезапустіть.</dd>
+  <dt>Втрати пачками або кілька величезних сегментів</dt>
+  <dd>Не спрацював крок <code>ethtool</code>/<code>gso_max_segs</code> (скрипт пише примітку) або задано <code>MTU=65536</code>.</dd>
+  <dt><code>Operation not permitted</code> на <code>tc</code>/<code>ip link</code></dt>
+  <dd>Бракує <code>--cap-add NET_ADMIN</code> (у Варіанті Б).</dd>
+  <dt>«container name … already in use»</dt>
+  <dd><code>run_demo.sh</code> прибирає сам; для Варіанта Б: <code>docker rm -f demo02-live</code>.</dd>
+  <dt>У колонці Info «Continuation»</dt>
+  <dd>Це HTTP-дисектор: Analyze → Enabled Protocols → зняти HTTP.</dd>
+</dl>
+
+<div class="em box">
+<b class="t">Запасний план (1 хвилина, без Docker)</b>
+<ol>
+  <li><code>open -a Wireshark sample_sack.pcap</code>: справжній записаний трафік. <code>run_demo.sh</code> пише в <code>capture.pcap</code> і зразки не перезаписує (тільки не передавайте <code>PCAP=sample_sack.pcap</code>).</li>
+  <li>Фільтр <code>frame.number &lt;= 27</code>: діра, Dup ACK #1…#7 із SACK-блоками, швидкий повтор.</li>
+  <li>Фільтр <code>frame.number &gt;= 102 &amp;&amp; frame.number &lt;= 111</code>: два RTO (+0.244 с, +0.288 с), кожен з D-SACK.</li>
+  <li>Analyze → Expert Information: підсумки.</li>
+  <li>Без Wireshark: <code>expected_output.txt</code>, розділ A (термінал) і розділ E (живий tshark, кадри 169 → 170).</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="out">2. Що означає вивід</h2>
+<p>Усі числа нижче з реальних запусків (<code>expected_output.txt</code>, <code>sample_sack.pcap</code>). <b>Втрати випадкові: у кожному запуску числа інші</b>, стабільні лише категорії подій.</p>
+
+<h3>2.1 Де губиться пакет і що бачить tcpdump</h3>
+<p><code>netem</code> стоїть на виході <code>lo</code>, а на loopback обидва напрямки йдуть через цей вихід: губляться і сегменти з даними, і ACK. <code>tcpdump</code> бачить пакет <b>після</b> netem, тож загублений сегмент у pcap не потрапляє взагалі. Видно лише <b>діру</b>, яку він лишив, і потім повтор. Тобто pcap показує погляд отримувача.</p>
+<p>Чому MTU 1500: на <code>lo</code> за замовчуванням MTU 65536, сегмент ≈ 64 КБ, і на 2 МБ лише 73 кадри та 1–2 події (розділ D). З MTU 1500 сегмент 1448 байтів (MSS 1460 мінус 12 байтів TCP timestamps), як в Ethernet, і подій десятки. <code>gso_max_segs 1</code> потрібен, бо netem губить цілий буфер ядра: без нього один «випадковий» дроп забирав до 21 сегмента поспіль.</p>
+
+<h3>2.2 Термінал: блоки 1–3 (розділ A)</h3>
+<pre><code>=== 1. Налаштування lo: MTU 1500, без TSO/GSO/GRO, netem delay 5ms loss 5% ===
+qdisc netem 805a: root refcnt 2 limit 1000 delay 5ms loss 5% seed 16730390467788837527
+SACK увімкнено: 1 (1 = так, 0 = ні)
+
+=== 2. curl завантажує 2048 КБ з http://127.0.0.1:9102/file.bin ===
+отримано 2097152 байтів за <span class="n">5.357760 с</span>
+  tcpdump: 1959 packets captured
+  tcpdump: <span class="n">0 packets dropped by kernel</span>
+
+=== 3. Що порахувало саме ядро (nstat, лічильники відправника і отримувача разом) ===
+  TcpExtTCPFastRetrans	<span class="n">66</span>	швидкі повтори (за дубльованими ACK / SACK)
+  TcpExtTCPLossProbes	9	зонди втрати хвоста (TLP)
+  TcpExtTCPRenoRecovery	0	епізоди відновлення без SACK (Reno)
+  TcpExtTCPSackRecovery	55	епізоди відновлення з SACK
+  TcpExtTCPSynRetrans	0	з них повторів SYN / SYN-ACK
+  TcpExtTCPTimeouts	<span class="n">3</span>	спрацювань таймера RTO
+  TcpRetransSegs	70	усього повторно надісланих сегментів</code></pre>
+<ul>
+  <li><b>5.36 с</b>: без втрат (<code>LOSS=0%</code>, розділ G) те саме завантаження зайняло <b>0.36 с</b>. 5% втрат → у ≈ 15 разів повільніше.</li>
+  <li><b>0 packets dropped by kernel</b>: захоплення повне, pcap можна рахувати.</li>
+  <li><code>TcpExtTCPFastRetrans</code>: спосіб 1 (дублі ACK / SACK). <code>TcpExtTCPTimeouts</code>: спосіб 2 (таймер). Це правда від самого TCP, з нею звіряємо позначки Wireshark.</li>
+  <li><code>TcpExtTCPLossProbes</code>: TLP, Linux «прощупує» хвіст, коли після втрати немає наступних сегментів, що дали б дублі ACK. <code>TcpExtTCPSackRecovery</code>: скільки разів TCP входив у відновлення з SACK.</li>
+</ul>
+
+<h3>2.3 Блок 4: підсумок «як побачить Wireshark»</h3>
+<p>Кожен рядок це фільтр відображення Wireshark і скільки кадрів під нього підпало (<code>sample_sack.pcap</code>, tshark 4.6.9 на Mac, розділ B):</p>
+<pre><code> кадрів  фільтр Wireshark
+     60  tcp.analysis.lost_segment                   <span class="c">← діра в seq: сегмент загубився</span>
+    183  tcp.analysis.duplicate_ack                  <span class="c">← усі Dup ACK</span>
+     39  tcp.analysis.duplicate_ack_num == 3         <span class="c">← саме третій дубль</span>
+    223  tcp.options.sack_le                         <span class="c">← ACK із блоками SACK</span>
+     <span class="n">34</span>  tcp.analysis.fast_retransmission            <span class="c">← спосіб 1</span>
+     14  tcp.analysis.retransmission &amp;&amp; !tcp.analysis.fast_retransmission   <span class="c">← інші повтори (RTO, TLP, RACK)</span>
+      <span class="n">3</span>  … &amp;&amp; tcp.time_delta &gt;= 0.2                  <span class="c">← спосіб 2: справжні RTO</span>
+     16  tcp.analysis.out_of_order                   <span class="c">← повтор, що прийшов дуже швидко після діри</span></code></pre>
+<ul>
+  <li><b>3 RTO у Wireshark = <code>TcpExtTCPTimeouts 3</code> у ядра.</b> Перевірка паузою ≥ 0.2 с працює.</li>
+  <li><b>Числа «повтори» в ядра і Wireshark не збігаються точно</b>: ядро каже <code>TcpRetransSegs 70</code>, Wireshark позначив 34 + 14 + 16 = 64 кадри. Різниця: повтори, які самі загубилися в netem і в pcap не потрапили.</li>
+  <li><b>Позначки Wireshark це евристика, а не прапорці в пакеті.</b> Той самий pcap: tshark 4.4.19 у контейнері дає 7 «інших» повторів і 23 Out-Of-Order, а 4.6.9 на Mac 14 і 16. Dup ACK, Fast Retransmission і RTO однакові в обох версіях.</li>
+</ul>
+
+<h3>2.4 Спосіб 1: дублі ACK і швидкий повтор (кадри 6–26)</h3>
+<p>Перевірено tshark 4.6.9 на <code>sample_sack.pcap</code> (у <code>expected_output.txt</code> рядки обрізані до 100 символів, тому SLE/SRE там не видно):</p>
+<pre><code>  6 0.021  9102 → 52956 [PSH, ACK] Seq=1 Len=206                       <span class="c">← заголовок HTTP-відповіді</span>
+  7 0.021  <span class="n">[TCP Previous segment not captured]</span> Seq=1655 Len=1448     <span class="c">← байтів 207–1654 немає</span>
+ 12 0.021  [TCP Previous segment not captured] Seq=10343             <span class="c">← друга діра: 8895–10342</span>
+ 14 0.027  52956 → 9102 [ACK] Ack=207                                <span class="c">← «чекаю байт 207»</span>
+ 15 0.027  [TCP Dup ACK 14#1] Ack=207 SLE=1655 SRE=3103              <span class="c">← «досі чекаю 207, але 1655–3102 вже є»</span>
+ 16 0.027  [TCP Dup ACK 14#2] Ack=207 SLE=1655 SRE=4551
+ 17 0.027  <span class="n">[TCP Dup ACK 14#3]</span> Ack=207 SLE=1655 SRE=5999              <span class="c">← класичний третій дубль</span>
+ ...
+ 20 0.027  [TCP Dup ACK 14#6] Ack=207 SLE=10343 SRE=11791 SLE=1655 SRE=8895   <span class="c">← 2 блоки = 2 діри</span>
+ 21 0.027  [TCP Dup ACK 14#7] Ack=207 SLE=10343 SRE=13239 SLE=1655 SRE=8895
+ 26 0.033  <span class="n">[TCP Fast Retransmission]</span> Seq=207 Len=1448               <span class="c">← ≈ 6 мс після дублів</span>
+ 46 0.057  [TCP Fast Retransmission] Seq=8895 Len=1448               <span class="c">← друга діра, знайдена через SACK</span></code></pre>
+<ul>
+  <li><b>Кадр 7</b>: Wireshark бачить втрату раніше, ніж будь-який ACK, бо номер seq «стрибнув» (після 1+206 мав бути 207, а прийшов 1655).</li>
+  <li><b>Ack=207</b>: ACK кумулятивний, «маю все до 206, далі шли 207». Кожен наступний сегмент після діри змушує отримувача повторити той самий Ack: це і є Dup ACK. Запис <code>14#3</code> = третій дубль ACK-кадру 14.</li>
+  <li><b>SLE/SRE</b> (SACK Left/Right Edge): які діапазони <i>після</i> діри вже прийшли. Дозволяє відправнику полатати кілька дір за один RTT. Обидві сторони погодили SACK у рукостисканні (<code>SACK_PERM</code> у SYN і SYN-ACK).</li>
+  <li><b>Чому повтор аж у кадрі 26</b>: дублі йдуть до відправника пів RTT, повтор назад ще пів RTT (затримка 5 мс у кожен бік), тож у pcap він з'являється через ≈ 6 мс.</li>
+</ul>
+<div class="warn box">
+<b class="t">Увага: «рівно після 3 дублів» не обіцяйте</b>
+<p>Сучасний Linux рахує не дублі, а скільки даних отримувач підтвердив за діркою (SACK, RFC 6675) плюс часовий RACK. У реальних записах буває:</p>
+<ul>
+  <li>повтор <b>до</b> Dup ACK #3: живий запуск, кадр 112 після лише #2, бо SACK вже показав ≈ 32 сегменти за діркою (розділ E);</li>
+  <li>повтор <b>після</b> Dup ACK #18: <code>sample_nosack.pcap</code>, кадри 187–216. Відправник вирішив раніше, але дублі вже летіли, а повтору ще 6 мс до точки захоплення.</li>
+</ul>
+<p>Для слайда правило «3 дублі ACK» правильне, просто без «рівно на третьому».</p>
+</div>
+
+<h3>2.5 Спосіб 2: таймер RTO (кадри 102–111)</h3>
+<pre><code>102 0.176  52956 → 9102 [ACK] Ack=79847
+103 0.182  9102 → 52956 Seq=79847 Len=1448                     <span class="c">← обидва сегменти ДІЙШЛИ…</span>
+104 0.182  9102 → 52956 Seq=81295 Len=1448                     <span class="c">← …але їхні ACK загубилися</span>
+105 0.426  <span class="n">[TCP Retransmission] Seq=79847</span>   (+0.244)          <span class="c">← тиша 0.244 с: спрацював RTO</span>
+106 0.432  [ACK] Ack=82743 SLE=79847 SRE=81295               <span class="c">← D-SACK: «це в мене вже було»</span>
+ ...
+109 0.450  [TCP Out-Of-Order] Seq=82743                      <span class="c">← швидкий повтор, Wireshark назвав його Out-Of-Order</span>
+110 0.738  <span class="n">[TCP Retransmission] Seq=82743</span>   (+0.288)          <span class="c">← його ACK теж загубився: знову RTO</span>
+111 0.744  [ACK] Ack=85639 SLE=82743 SRE=84191               <span class="c">← знову D-SACK</span></code></pre>
+<ul>
+  <li><b>(+0.244)</b>: <code>tcp.time_delta</code>, пауза від попереднього кадру з'єднання. RTO = SRTT + 4·RTTVAR (RFC 6298), але не менше мінімуму: RFC радить 1 с, Linux бере 200 мс. При RTT ≈ 12 мс RTO фактично ≈ 200 мс з хвостиком. У всіх запусках паузи перед RTO були 0.21–0.29 с.</li>
+  <li><b>D-SACK</b> (у Wireshark Warn «D-SACK Sequence»): блок SACK нижче за Ack, тобто «ці байти я вже мав». RTO був <b>хибним</b>: дані дійшли, губилися ACK.</li>
+  <li>Після RTO TCP вважає мережу сильно перевантаженою: cwnd → 1 сегмент, повільний старт заново, а при повторних таймаутах RTO подвоюється.</li>
+</ul>
+
+<h3>2.6 Обидва способи в одному місці (живий tshark, розділ E)</h3>
+<pre><code>151 0.073987210 … [TCP Dup ACK 150#1] … Ack=140663 … SLE=142111 SRE=145007
+152 0.073992375 … [TCP Dup ACK 150#2] … Ack=140663 … SLE=142111 SRE=146455
+169 0.079211479 … <span class="n">[TCP Fast Retransmission]</span> … Seq=140663   <span class="c">← цей повтор теж загубився…</span>
+170 0.299910999 … <span class="n">[TCP Retransmission]</span> … Seq=140663        <span class="c">← …тож через ≈ 220 мс його шле таймер</span></code></pre>
+<p>Кадри 169 → 170: спосіб 1 не спрацював, страхує спосіб 2. Той самий seq, різниця в часі ≈ 0.22 с. Прогрес <code>curl</code> у цей момент помітно «підвисає».</p>
+
+<h3>2.7 SACK увімкнено чи ні (по одному запуску)</h3>
+<div class="tw"><table>
+<tr><th>2 МБ, 5% втрат</th><th>SACK on (<code>sample_sack.pcap</code>)</th><th>SACK off (<code>sample_nosack.pcap</code>)</th></tr>
+<tr><td>Час завантаження (без втрат 0.36 с)</td><td class="r">5.36 с</td><td class="r">6.70 с</td></tr>
+<tr><td>Ядро: <code>TcpExtTCPTimeouts</code></td><td class="r">3</td><td class="r">12</td></tr>
+<tr><td>Ядро: епізоди відновлення</td><td class="r">55 SACK</td><td class="r">38 Reno</td></tr>
+<tr><td>Wireshark: Dup ACK</td><td class="r">183</td><td class="r">367</td></tr>
+<tr><td>Wireshark: ACK з блоками SACK</td><td class="r">223</td><td class="r">0</td></tr>
+<tr><td>Wireshark: Fast Retransmission</td><td class="r">34</td><td class="r">39</td></tr>
+<tr><td>Wireshark: RTO (пауза ≥ 0.2 с)</td><td class="r">3</td><td class="r">10</td></tr>
+</table></div>
+<p>Це один приклад, не бенчмарк: у ≈ десятку SACK-запусків із 5% втрат таймаутів було від 0 до 6. Без SACK відправник дізнається про одну діру за RTT, і друга втрата в тому ж вікні часто закінчується таймаутом. <code>sample_nosack.pcap</code> гарний для «підручникової» картинки: довгі ряди простих Dup ACK без SLE/SRE і один швидкий повтор.</p>
+<p class="c">Примітка: для <code>sample_nosack.pcap</code> ядро порахувало 12 RTO, а Wireshark знайшов 10 повторів після паузи ≥ 0.2 с. Повтор за RTO, який сам загубився, у pcap не потрапляє.</p>
+
+<h3>2.8 Analyze → Expert Information (sample_sack.pcap, Wireshark 4.6.9)</h3>
+<pre><code>Warns (79)
+   60  Previous segment(s) not captured (common at capture start)
+   16  This frame is a (suspected) out-of-order segment
+    3  D-SACK Sequence                                  <span class="c">← 3 хибні RTO через загублені ACK</span>
+Notes (266)
+   56  Duplicate ACK (#1)
+   52  Duplicate ACK (#2)
+   39  Duplicate ACK (#3)
+   34  This frame is a (suspected) fast retransmission
+   48  This frame is a (suspected) retransmission       <span class="c">← включає 34 швидкі</span>
+    1  Ambiguous ACK following Karn's definition        <span class="c">← лише у Wireshark 4.6</span>
+   36  Duplicate ACK (#4 і далі, разом)                 <span class="c">← це analyze.py зводить #4…#n в один рядок</span></code></pre>
+<p>У самому Wireshark кожен <code>Duplicate ACK (#n)</code> окремим рядком; подвійний клік переходить до кадру. Правило розфарбування «Bad TCP» (чорний фон, червоний текст) підсвічує всі ці події при прокручуванні.</p>
+
+<!-- ============================================================ -->
+<h2 id="say">3. На чому наголосити</h2>
+
+<div class="em box">
+<b class="t">Ключові думки</b>
+<ol>
+  <li><b>Два способи помітити втрату.</b> Дублі ACK: швидко, ≈ 1 RTT (тут ≈ 6–12 мс). Таймер RTO: повільно, ≥ 200 мс у Linux. Різниця в 20+ разів видна прямо в колонці часу.</li>
+  <li><b>Таймер це страховка</b> для випадків, коли дублів не буде: загубився сам повтор (кадри 169 → 170), загубилися всі ACK (кадр 105), втрата в хвості пачки (спершу TLP).</li>
+  <li><b>Втрата б'є по швидкості набагато сильніше, ніж по байтах.</b> 5% втрат, а завантаження у ≈ 15 разів довше (0.36 → 5.36 с): кожна втрата зменшує cwnd удвічі, кожен RTO скидає його до 1 сегмента.</li>
+  <li><b>SACK</b> каже відправнику, що саме дійшло після діри, і дозволяє латати кілька дір за RTT. Без нього RTO частіші (3 проти 12 у наших прикладах).</li>
+  <li><b>Wireshark здогадується.</b> Позначки обчислено з трасування, а не прочитано з пакета; звіряйте з паузою <code>tcp.time_delta</code> і лічильниками ядра.</li>
+</ol>
+</div>
+
+<div class="em box">
+<b class="t">«Ага»-момент</b>
+<p>Кадри 169 → 170 у живому запуску (або 103–106 у зразку): той самий seq двічі, між ними тиша ≈ 0.22–0.24 с, і прогрес curl стоїть. Студенти бачать, що «повільний» спосіб існує саме тому, що «швидкий» іноді не може спрацювати. А D-SACK у кадрі 106 показує, що дані взагалі не губилися: губилися ACK.</p>
+</div>
+
+<h3>Питання до аудиторії</h3>
+<dl>
+  <dt>Хто першим помічає втрату: відправник чи отримувач?</dt>
+  <dd>Отримувач, за стрибком seq (кадр 7). Але виправити може лише відправник, і дізнається він через ACK.</dd>
+  <dt>Чому чекати 3 дублі ACK, а не один?</dt>
+  <dd>Пакети можуть приходити не по порядку. Один-два дублі можуть означати «трохи запізнився»; три це компроміс між швидкістю і хибними тривогами.</dd>
+  <dt>Чому швидкий повтор «швидкий»?</dt>
+  <dd>Він чекає ≈ 1 RTT, а не ≥ 200 мс таймера. Хай знайдуть паузу ≥ 0.2 с у <code>tcp.time_delta</code>.</dd>
+  <dt>Коли дублі ACK не допоможуть?</dt>
+  <dd>Загублено останній сегмент, загублено сам повтор (169 → 170), загублено всі ACK (105). Лишається таймер.</dd>
+  <dt>Що SLE/SRE дає відправнику понад Ack?</dt>
+  <dd>Які діапазони після діри вже є: можна полатати кілька дір за раз і не слати зайве.</dd>
+  <dt>5% втрат, чому ж у 15 разів повільніше?</dt>
+  <dd>Втрата для TCP це сигнал перевантаження: cwnd зменшується, після RTO повільний старт заново. Це коштує набагато більше, ніж повторні байти.</dd>
+  <dt>Кожен «TCP Retransmission» у Wireshark це таймаут?</dt>
+  <dd>Ні. Wireshark так підписує будь-який повтор без попередніх дублів, зокрема TLP і RACK. Таймаут: пауза ≥ 0.2 с і лічильник <code>TcpExtTCPTimeouts</code>.</dd>
+</dl>
+
+<h3>Вправа 3</h3>
+<p>Дайте студентам <code>sample_sack.pcap</code> і попросіть порахувати фільтрами дублі ACK, швидкі повтори і RTO. Відповіді (Wireshark 4.6.9): <code>tcp.analysis.duplicate_ack</code> = 183, <code>tcp.analysis.fast_retransmission</code> = 34, RTO (<code>tcp.analysis.retransmission &amp;&amp; !tcp.analysis.fast_retransmission &amp;&amp; tcp.time_delta &gt;= 0.2</code>, потрібні conversation timestamps) = 3. Якщо у студента інша версія Wireshark, «інші повтори» й Out-Of-Order можуть відрізнятися; ці три числа ні.</p>
+
+<h3>Які хибні уявлення виправляє демо</h3>
+<ul>
+  <li><b>«Загублений пакет видно в Wireshark».</b> Ні: видно лише діру після нього (<i>Previous segment not captured</i>) і повтор.</li>
+  <li><b>«Повтор завжди рівно після третього дубля».</b> У Linux із SACK/RACK буває і після другого, і після вісімнадцятого.</li>
+  <li><b>«RTO означає, що дані загубилися».</b> Тут усі 3 RTO були хибні: губилися ACK, і D-SACK це підтверджує.</li>
+  <li><b>«5% втрат = на 5% повільніше».</b> У ≈ 15 разів повільніше.</li>
+  <li><b>«5% випадкових втрат = поодинокі втрати».</b> Ядро губить цілі буфери, тож без <code>gso_max_segs 1</code> один дроп забирав до 21 сегмента поспіль.</li>
+</ul>
+
+<div class="warn box">
+<b class="t">Перед парою перевірте</b>
+<ul>
+  <li>Образ <code>demo02-retrans</code> зібрано (потрібен інтернет).</li>
+  <li>RTO при 5% випадкові: у SACK-запуску їх може й не бути. Майте напоготові <code>LOSS=10%</code> і <code>sample_sack.pcap</code>.</li>
+  <li>Не перевірено: вид Statistics → TCP Stream Graphs → tcptrace, втрати на macOS через dummynet, «голий» Linux з sudo.</li>
+  <li>Після курсу звільнити місце: <code>docker rmi demo02-retrans</code>.</li>
+</ul>
+</div>
+
+</main>
+</body>
+</html>

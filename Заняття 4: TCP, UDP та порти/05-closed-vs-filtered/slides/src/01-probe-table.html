@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body>
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">macOS 15.7 · ./run_demo.sh</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="cut">…</span>
+<span class="p">$</span> <span class="cmd">time nc -vz -G 5 127.0.0.1 9115</span>
+Connection to 127.0.0.1 port 9115 [tcp/*] <span class="o">succeeded!</span>
+real <span class="o">0.019 s</span>
+<span class="p">$</span> <span class="cmd">time nc -vz -G 5 127.0.0.1 9105</span>
+nc: connectx to 127.0.0.1 port 9105 (tcp) failed: <span class="c">Connection refused</span>
+real <span class="c">0.008 s</span>
+<span class="p">$</span> <span class="cmd">time nc -vz -G 5 10.255.255.1 80</span>
+nc: connectx to 10.255.255.1 port 80 (tcp) failed: <span class="f">Operation timed out</span>
+real <span class="f">5.010 s</span>
+<span class="cut">…</span>
+<span class="h">ціль                | результат                      | час     | термін nmap</span>
+--------------------+--------------------------------+---------+------------
+127.0.0.1:9115/tcp  | <span class="o">SYN-ACK: з'єднання встановлено</span> | <span class="o">0.17 мс</span> | <span class="o">open</span>      <span class="a">← рукостискання</span>
+127.0.0.1:9105/tcp  | <span class="c">RST: Connection refused</span>        | <span class="c">0.10 мс</span> | <span class="c">closed</span>    <span class="a">← миттєве «ні»</span>
+10.255.255.1:80/tcp | <span class="f">тиша, тайм-аут 5 с</span>             | <span class="f">5.00 с</span>  | <span class="f">filtered</span>  <span class="a">← у 50 000 разів довше</span>
+</pre></body></html>

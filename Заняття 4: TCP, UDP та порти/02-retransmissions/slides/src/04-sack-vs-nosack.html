@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8">
+<!-- Data (real, one run each, 2 MB, 5% loss), source: ../../expected_output.txt
+     SACK on  = section A (sample_sack.pcap):  Dup ACK 183, Fast Retransmission 34, TcpExtTCPTimeouts 3,  5.357760 s
+     SACK off = section C (sample_nosack.pcap): Dup ACK 367, Fast Retransmission 39, TcpExtTCPTimeouts 12, 6.700190 s -->
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#fcfcfb}
+body{display:inline-block;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#0b0b0b;--s1:#2a78d6;--s2:#eb6834;--t2:#52514e;--grid:#e4e3df}
+.root{padding:28px 32px 24px;width:1200px}
+h1{font-size:26px;margin:0 0 4px;font-weight:650}
+.sub{color:var(--t2);font-size:16px;margin:0 0 18px}
+.legend{display:flex;gap:28px;font-size:17px;margin-bottom:18px}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:16px;height:16px;border-radius:4px;display:inline-block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:22px 48px}
+.panel h2{font-size:19px;margin:0 0 2px;font-weight:600}
+.panel .src{font-size:14px;color:var(--t2);margin:0 0 10px;font-family:Menlo,monospace}
+.row{display:flex;align-items:center;gap:10px;height:36px;margin-bottom:6px}
+.lab{width:110px;font-size:16px;color:var(--t2)}
+.track{flex:1;position:relative;height:28px;border-left:1px solid #b9b8b2}
+.bar{position:absolute;left:0;top:0;height:28px;border-radius:0 4px 4px 0}
+.val{position:absolute;top:0;line-height:28px;font-size:18px;font-weight:650;padding-left:8px;font-variant-numeric:tabular-nums}
+.foot{margin-top:18px;font-size:14px;color:var(--t2)}
+</style></head><body><div class="root" id="r">
+<h1>SACK увімкнено vs вимкнено: один запуск кожного</h1>
+<p class="sub">2 МБ через loopback із 5% втрат (tc netem), MTU 1500. Кожна панель має власну шкалу.</p>
+<div class="legend"><span><i class="sw" style="background:var(--s1)"></i>SACK увімкнено (sample_sack.pcap)</span><span><i class="sw" style="background:var(--s2)"></i>SACK вимкнено (sample_nosack.pcap)</span></div>
+<div class="grid" id="g"></div>
+<p class="foot">Джерело: expected_output.txt, розділи A і C. Втрати випадкові: інший запуск дасть інші числа (з SACK за ~12 тестових запусків RTO було від 0 до 6).</p>
+</div>
+<script>
+const P=[
+ ["Дубльовані ACK (кадри)","Wireshark: tcp.analysis.duplicate_ack",183,367,""],
+ ["Швидкі повтори (Fast Retransmission)","Wireshark: tcp.analysis.fast_retransmission",34,39,""],
+ ["Спрацювання таймера RTO","ядро: TcpExtTCPTimeouts",3,12,""],
+ ["Час завантаження, с","curl (без втрат: 0.361 с)",5.357760,6.700190," с"],
+];
+const g=document.getElementById('g');
+for(const [t,src,a,b,u] of P){
+ const m=Math.max(a,b)*1.18;
+ const fmt=v=>u?v.toFixed(1).replace('.',',')+u:String(v);
+ const row=(l,v,c)=>`<div class="row"><span class="lab">${l}</span><div class="track"><div class="bar" style="width:${v/m*100}%;background:var(${c})"></div><span class="val" style="left:${v/m*100}%">${fmt(v)}</span></div></div>`;
+ g.insertAdjacentHTML('beforeend',`<div class="panel"><h2>${t}</h2><p class="src">${src}</p>${row('з SACK',a,'--s1')}${row('без SACK',b,'--s2')}</div>`);
+}
+const r=document.getElementById('r').getBoundingClientRect();document.title=Math.ceil(r.width)+'x'+Math.ceil(r.height);
+</script></body></html>

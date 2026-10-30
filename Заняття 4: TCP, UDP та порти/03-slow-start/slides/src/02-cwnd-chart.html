@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#ffffff}
+.wrap{padding:20px 24px 12px;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#1f2328}
+h1{font-size:20px;margin:0 0 2px;font-weight:600} .sub{font-size:14px;color:#5b636e;margin:0 0 6px}
+.pt{font-size:16px;font-weight:600;fill:#1f2328} .tick{font-size:13px;fill:#5b636e} .al{font-size:13px;fill:#5b636e}
+.grid{stroke:#e6e8eb} .axis{stroke:#8c959f} .line{fill:none;stroke:#d97706;stroke-width:3}
+.pt0{fill:#d97706;stroke:#fff;stroke-width:2} .lab{font-size:13px;font-weight:600;fill:#9a5200}
+</style></head><body><div class="wrap">
+<h1>cwnd відправника (сервер, порт 9103), реальні вибірки ss -tin</h1>
+<p class="sub">./run_demo.sh, netem delay 100 мс (RTT ≈ 202 мс), 3 МБ; дані: recorded/cwnd_table_default.txt</p>
+<svg width="1140" height="400" viewBox="0 0 1140 400"><text x="64" y="28" class="pt">Звичайна шкала: експонента</text>
+<line x1="64" x2="536" y1="344.0" y2="344.0" class="grid"/>
+<text x="56" y="349.0" class="tick" text-anchor="end">0</text>
+<line x1="64" x2="536" y1="259.4" y2="259.4" class="grid"/>
+<text x="56" y="264.4" class="tick" text-anchor="end">400</text>
+<line x1="64" x2="536" y1="174.9" y2="174.9" class="grid"/>
+<text x="56" y="179.9" class="tick" text-anchor="end">800</text>
+<line x1="64" x2="536" y1="90.3" y2="90.3" class="grid"/>
+<text x="56" y="95.3" class="tick" text-anchor="end">1200</text>
+<text x="64.0" y="366" class="tick" text-anchor="middle">0</text>
+<text x="182.0" y="366" class="tick" text-anchor="middle">400</text>
+<text x="300.0" y="366" class="tick" text-anchor="middle">800</text>
+<text x="418.0" y="366" class="tick" text-anchor="middle">1200</text>
+<text x="536.0" y="366" class="tick" text-anchor="middle">1600</text>
+<line x1="64" x2="536" y1="344" y2="344" class="axis"/>
+<text x="300.0" y="388" class="al" text-anchor="middle">t, мс</text>
+<text x="16" y="196.0" class="al" text-anchor="middle" transform="rotate(-90 16 196.0)">cwnd, сегментів</text>
+<polyline points="64.0,341.9 127.4,339.8 190.3,335.5 246.0,327.1 309.1,310.2 362.8,276.3 422.7,208.7 486.7,73.4" class="line"/>
+<circle cx="64.0" cy="341.9" r="5" class="pt0"/>
+<text x="56.0" y="331.9" class="lab" text-anchor="end">10</text>
+<circle cx="127.4" cy="339.8" r="5" class="pt0"/>
+<text x="119.4" y="329.8" class="lab" text-anchor="end">20</text>
+<circle cx="190.3" cy="335.5" r="5" class="pt0"/>
+<text x="182.3" y="325.5" class="lab" text-anchor="end">40</text>
+<circle cx="246.0" cy="327.1" r="5" class="pt0"/>
+<text x="238.0" y="317.1" class="lab" text-anchor="end">80</text>
+<circle cx="309.1" cy="310.2" r="5" class="pt0"/>
+<text x="301.1" y="300.2" class="lab" text-anchor="end">160</text>
+<circle cx="362.8" cy="276.3" r="5" class="pt0"/>
+<text x="354.8" y="266.3" class="lab" text-anchor="end">320</text>
+<circle cx="422.7" cy="208.7" r="5" class="pt0"/>
+<text x="414.7" y="198.7" class="lab" text-anchor="end">640</text>
+<circle cx="486.7" cy="73.4" r="5" class="pt0"/>
+<text x="478.7" y="63.4" class="lab" text-anchor="end">1280</text><text x="644" y="28" class="pt">Шкала log₂: рівні сходинки ×2</text>
+<line x1="644" x2="1116" y1="332.1" y2="332.1" class="grid"/>
+<text x="636" y="337.1" class="tick" text-anchor="end">10</text>
+<line x1="644" x2="1116" y1="295.1" y2="295.1" class="grid"/>
+<text x="636" y="300.1" class="tick" text-anchor="end">20</text>
+<line x1="644" x2="1116" y1="258.1" y2="258.1" class="grid"/>
+<text x="636" y="263.1" class="tick" text-anchor="end">40</text>
+<line x1="644" x2="1116" y1="221.1" y2="221.1" class="grid"/>
+<text x="636" y="226.1" class="tick" text-anchor="end">80</text>
+<line x1="644" x2="1116" y1="184.1" y2="184.1" class="grid"/>
+<text x="636" y="189.1" class="tick" text-anchor="end">160</text>
+<line x1="644" x2="1116" y1="147.1" y2="147.1" class="grid"/>
+<text x="636" y="152.1" class="tick" text-anchor="end">320</text>
+<line x1="644" x2="1116" y1="110.1" y2="110.1" class="grid"/>
+<text x="636" y="115.1" class="tick" text-anchor="end">640</text>
+<line x1="644" x2="1116" y1="73.1" y2="73.1" class="grid"/>
+<text x="636" y="78.1" class="tick" text-anchor="end">1280</text>
+<text x="644.0" y="366" class="tick" text-anchor="middle">0</text>
+<text x="762.0" y="366" class="tick" text-anchor="middle">400</text>
+<text x="880.0" y="366" class="tick" text-anchor="middle">800</text>
+<text x="998.0" y="366" class="tick" text-anchor="middle">1200</text>
+<text x="1116.0" y="366" class="tick" text-anchor="middle">1600</text>
+<line x1="644" x2="1116" y1="344" y2="344" class="axis"/>
+<text x="880.0" y="388" class="al" text-anchor="middle">t, мс</text>
+<text x="596" y="196.0" class="al" text-anchor="middle" transform="rotate(-90 596 196.0)">cwnd, сегментів (log₂)</text>
+<polyline points="644.0,332.1 707.4,295.1 770.3,258.1 826.0,221.1 889.1,184.1 942.8,147.1 1002.7,110.1 1066.7,73.1" class="line"/>
+<circle cx="644.0" cy="332.1" r="5" class="pt0"/>
+<circle cx="707.4" cy="295.1" r="5" class="pt0"/>
+<circle cx="770.3" cy="258.1" r="5" class="pt0"/>
+<circle cx="826.0" cy="221.1" r="5" class="pt0"/>
+<circle cx="889.1" cy="184.1" r="5" class="pt0"/>
+<circle cx="942.8" cy="147.1" r="5" class="pt0"/>
+<circle cx="1002.7" cy="110.1" r="5" class="pt0"/>
+<circle cx="1066.7" cy="73.1" r="5" class="pt0"/></svg></div></body></html>

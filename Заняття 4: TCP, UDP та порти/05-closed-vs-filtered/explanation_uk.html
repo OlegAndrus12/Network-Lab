@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Демо 05: closed чи filtered</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1f2328; --muted: #5b6370; --card: #ffffff; --border: #dcd9d2;
+  --code-bg: #f3f1ec; --accent: #1f5fae; --open: #1a7f37; --closed: #b35900; --filtered: #8250df;
+  --note-bg: #eaf3ff; --note-border: #1f5fae; --warn-bg: #fdecea; --warn-border: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e6e3; --muted: #a0a6ae; --card: #1d2024; --border: #33373d;
+    --code-bg: #0f1113; --accent: #79b0f2; --open: #56d364; --closed: #f0a35a; --filtered: #c4a5ff;
+    --note-bg: #142236; --note-border: #79b0f2; --warn-bg: #301a1a; --warn-border: #e06666;
+  }
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+.sub { color: var(--muted); margin: 0 0 16px; }
+code { font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 16px; max-width: 100%;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.ann { color: var(--muted); }
+.o { color: var(--open); font-weight: 600; }
+.c { color: var(--closed); font-weight: 600; }
+.f { color: var(--filtered); font-weight: 600; }
+.table-wrap { overflow-x: auto; margin: 8px 0 16px; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 0.95rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.note, .warn { border-left: 4px solid; border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
+.note { background: var(--note-bg); border-color: var(--note-border); }
+.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+.note > b:first-child, .warn > b:first-child { display: block; margin-bottom: 2px; }
+.q { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.q .a { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>Демо 05: закритий порт проти відфільтрованого</h1>
+<p class="sub">Тема 4 (TCP, UDP та порти), слайд «Чому TCP сканувати легко…». Порти: <b>9115</b> (відкритий), <b>9105</b> (закритий). Усі цифри нижче взяті з <code>expected_output.txt</code> (реальні запуски 22.10.2026: macOS 15.7 і Linux 6.12 у Docker Desktop).</p>
+
+<div class="note"><b>Суть за 10 секунд</b>
+Сканер дізнається про порт лише з того, що повернулося у відповідь на SYN. Відкритий порт відповідає <span class="o">SYN-ACK</span>, закритий <span class="c">RST</span>, обидва за долі мілісекунди. Порт за фаєрволом <span class="f">мовчить</span>, і клієнт чекає до тайм-ауту. Тому стану відрізняються секундоміром.</div>
+
+<!-- ============================================================ -->
+<h2>1. Як запустити</h2>
+
+<h3>Що потрібно</h3>
+<ul>
+  <li><code>python3</code> і <code>nc</code> (на macOS вбудований, на Linux потрібен <code>netcat-openbsd</code>).</li>
+  <li>Вільні порти 9105 і 9115 на 127.0.0.1 (скрипт перевіряє сам).</li>
+  <li>Мережа, де <code>10.255.255.1</code> маршрутизується і ніхто не відповідає (звичайна домашня мережа без VPN підходить).</li>
+  <li>tcpdump необов'язковий: <code>run_demo.sh</code> запускає його лише без пароля (root або macOS із групою <code>access_bpf</code>, яку ставить ChmodBPF від Wireshark). Інакше пише «tcpdump пропущено» і працює далі.</li>
+  <li>Для Linux-лабораторії: Docker. <b>Перша збірка образу потребує інтернету</b> (<code>apt-get</code>) і йде повільно, тому запустіть <code>./run_demo.sh docker</code> один раз до заняття. Далі близько 30 с.</li>
+</ul>
+
+<h3>Однією командою (macOS або Linux, близько 30 с)</h3>
+<pre><code>cd 05-closed-vs-filtered
+./run_demo.sh</code></pre>
+<p>Три запуски <code>time nc</code> (open, closed, filtered), потім таблиця від <code>probe.py</code>, потім tcpdump (якщо дозволено). Скрипт сам підбирає ключ тайм-ауту: <code>-G</code> на macOS, <code>-w</code> на Linux.</p>
+
+<h3>Linux-лабораторія в Docker (детерміновано, близько 30 с)</h3>
+<pre><code>./run_demo.sh docker                       # збирає образ demo05-lab і проганяє 4 розділи
+CLASSIC_BACKOFF=1 ./run_demo.sh docker     # те саме, але SYN-повтори 1, 2, 4 с</code></pre>
+<p>Усередині: <code>docker run --rm --cap-add NET_ADMIN --name demo05-lab demo05-lab</code>. <code>CLASSIC_BACKOFF</code> додає <code>--sysctl net.ipv4.tcp_syn_linear_timeouts=0</code> (з контейнера цей sysctl змінити не можна, тому лише при <code>docker run</code>).</p>
+
+<h3>Вручну, крок за кроком (наочніше для студентів)</h3>
+<p><b>macOS</b>, два термінали:</p>
+<pre><code>python3 open_server.py                    # термінал 1: слухач на 9115
+
+time nc -vz -G 5 127.0.0.1 9115           # термінал 2: open, миттєво "succeeded"
+time nc -vz -G 5 127.0.0.1 9105           # closed, миттєво "Connection refused"
+time nc -vz -G 5 10.255.255.1 80          # filtered, 5 с тиші, "Operation timed out"
+python3 probe.py                          # те саме таблицею (цілі за замовчуванням)
+lsof -nP -iTCP:9115 -sTCP:LISTEN          # хто слухає порт</code></pre>
+<p>Захоплення на macOS (потрібен <code>sudo</code>, якщо ви не в <code>access_bpf</code>):</p>
+<pre><code>sudo tcpdump -i lo0 -n -ttttt 'tcp port 9105 or tcp port 9115'
+sudo tcpdump -i en0 -n -ttttt 'host 10.255.255.1'   # інтерфейс: route -n get 10.255.255.1</code></pre>
+
+<p><b>Docker вручну</b> (образ уже зібрано через <code>./run_demo.sh docker</code>):</p>
+<pre><code>docker run --rm -it --cap-add NET_ADMIN --name demo05-lab demo05-lab bash
+
+python3 open_server.py &amp;
+tcpdump -i lo -n -ttttt 'tcp port 9105' &amp;
+nc -vz -w 5 127.0.0.1 9105                                   # closed: RST
+iptables -A INPUT -p tcp --dport 9105 -j DROP                # тепер filtered
+time nc -vz -w 8 127.0.0.1 9105                              # дивимось повтори SYN
+iptables -F INPUT
+iptables -A INPUT -p tcp --dport 9115 -j REJECT --reject-with tcp-reset
+nc -vz -w 5 127.0.0.1 9115                                   # слухач працює, а "refused"
+ss -ltn                                                      # хто слухає (Linux)</code></pre>
+
+<h3>Корисні змінні та ключі (перевірено за кодом скриптів)</h3>
+<div class="table-wrap"><table>
+<tr><th>Що</th><th>Де</th><th>Навіщо</th></tr>
+<tr><td><code>FILTERED_HOST=…</code></td><td><code>run_demo.sh</code></td><td>інша «мовчазна» адреса (за замовчуванням <code>10.255.255.1</code>)</td></tr>
+<tr><td><code>TIMEOUT=…</code></td><td><code>run_demo.sh</code></td><td>тайм-аут для nc і probe.py, с (за замовчуванням 5)</td></tr>
+<tr><td><code>CLASSIC_BACKOFF=1</code></td><td><code>run_demo.sh docker</code></td><td>класичний backoff 1, 2, 4 с</td></tr>
+<tr><td><code>--timeout</code>, <code>--udp</code>, цілі <code>host:port</code></td><td><code>probe.py</code></td><td>тайм-аут connect(); UDP замість TCP</td></tr>
+<tr><td><code>--port</code>, <code>--host</code>, <code>--udp</code></td><td><code>open_server.py</code></td><td>інший порт; мовчазний UDP-сокет</td></tr>
+</table></div>
+
+<h3>Якщо щось пішло не так</h3>
+<ul>
+  <li><b>Filtered відповідає миттєво, а не за 5 с.</b> Мережа аудиторії повернула ICMP unreachable чи RST або немає маршруту за замовчуванням. Перевірте <code>route -n get 10.255.255.1</code> (macOS) / <code>ip route get 10.255.255.1</code> (Linux). Спробуйте <code>FILTERED_HOST=192.0.2.1 ./run_demo.sh</code> (TEST-NET-1; <i>не перевірено</i>) або одразу Docker: там усе детерміновано.</li>
+  <li><b>VPN / корпоративна мережа.</b> Якщо маршрут іде через <code>utun*</code>, скрипт надрукує «УВАГА: маршрут іде через VPN». Вимкніть VPN або беріть Docker.</li>
+  <li><b>«Порт 9115 уже хтось слухає».</b> Живий попередній <code>open_server.py</code>: <code>lsof -nP -iTCP:9115 -sTCP:LISTEN</code>, потім <code>kill &lt;PID&gt;</code> (або <code>kill %1</code>, якщо запускали з <code>&amp;</code>).</li>
+  <li><b>nc на macOS висить 75 с.</b> Ви використали <code>-w</code>. Потрібно <code>-G 5</code>. Ctrl+C безпечний.</li>
+  <li><b>Немає виводу tcpdump на macOS.</b> Потрібен <code>sudo</code>; демо працює і без захоплення.</li>
+  <li><b>Docker: помилка iptables.</b> Потрібен <code>--cap-add NET_ADMIN</code> (run_demo.sh додає). Якщо падає <code>CLASSIC_BACKOFF=1</code>, ядро не має <code>tcp_syn_linear_timeouts</code>: запускайте без змінної.</li>
+  <li><b>Залишки.</b> Контейнер з <code>--rm</code>; перевірка: <code>docker ps -a --filter name=demo05</code>. Після курсу: <code>docker rmi demo05-lab</code>.</li>
+</ul>
+<div class="note"><b>Запасний план на 1 хвилину</b>
+Відкрийте <code>expected_output.txt</code>: розділ <b>A</b> (три <code>time nc</code> і таблиця), <b>C</b> (пастка <code>-w</code>, 1:15), <b>E</b> частини 2–3 (DROP проти REJECT при працюючому слухачі), <b>F</b> (backoff 1, 2, 4 с), <b>D</b> / <b>E</b> частина 4 (UDP).</div>
+
+<!-- ============================================================ -->
+<h2>2. Що означає вивід</h2>
+
+<h3>macOS, <code>./run_demo.sh</code> (розділ A)</h3>
+<pre><code>Маршрут до 10.255.255.1: інтерфейс en0     <span class="ann">← маршрут є, через Wi-Fi, не VPN</span>
+
+$ time nc -vz -G 5 127.0.0.1 9115
+Connection to 127.0.0.1 port 9115 [tcp/*] succeeded!
+real 0.019 s                                <span class="ann">← <span class="o">open</span>: SYN → SYN-ACK → ACK</span>
+
+$ time nc -vz -G 5 127.0.0.1 9105
+nc: connectx to 127.0.0.1 port 9105 (tcp) failed: Connection refused
+real 0.008 s                                <span class="ann">← <span class="c">closed</span>: так само швидко, але «ні»</span>
+
+$ time nc -vz -G 5 10.255.255.1 80
+nc: connectx to 10.255.255.1 port 80 (tcp) failed: Operation timed out
+real 5.010 s                                <span class="ann">← <span class="f">filtered</span>: дочекались нашого тайм-ауту</span></code></pre>
+<ul>
+  <li><code>-v</code> друкує результат, <code>-z</code> лише перевіряє з'єднання без даних, <code>-G 5</code> тайм-аут connect() на macOS.</li>
+  <li>8–19 мс у <code>nc</code> це здебільшого запуск процесу. Сам connect() міряє <code>probe.py</code>:</li>
+</ul>
+<pre><code>ціль                | результат                      | час     | термін nmap
+--------------------+--------------------------------+---------+------------
+127.0.0.1:9115/tcp  | SYN-ACK: з'єднання встановлено | 0.17 мс | <span class="o">open</span>
+127.0.0.1:9105/tcp  | RST: Connection refused        | 0.10 мс | <span class="c">closed</span>
+10.255.255.1:80/tcp | тиша, тайм-аут 5 с             | 5.00 с  | <span class="f">filtered</span></code></pre>
+<ul>
+  <li><b>результат</b>: що повернуло ядро. Успішний <code>connect()</code> = прийшов SYN-ACK; <code>ConnectionRefusedError</code> = прийшов RST; <code>socket.timeout</code> = не прийшло нічого.</li>
+  <li><b>термін nmap</b>: як цей стан називає сканер. Різниця 0.10 мс проти 5.00 с, тобто у 50 000 разів.</li>
+  <li>Мілісекунди змінюються від запуску до запуску; 5.00 с завжди дорівнює тайм-ауту.</li>
+</ul>
+
+<h3>tcpdump: що реально летить</h3>
+<pre><code><span class="ann"># lo0, закритий порт</span>
+ 00:00:00.017497 IP 127.0.0.1.58920 &gt; 127.0.0.1.9105: Flags [S], seq 265015013, win 65535, length 0
+ 00:00:00.017510 IP 127.0.0.1.9105 &gt; 127.0.0.1.58920: Flags [R.], seq 0, ack 265015014, win 0, length 0
+                                                    <span class="ann">↑ RST,ACK через 13 мкс; ack = їхній seq + 1</span></code></pre>
+<ul>
+  <li><code>-ttttt</code>: час від першого пакета, тож видно паузи. <code>[S]</code> = SYN, <code>[S.]</code> = SYN-ACK, <code>[R.]</code> = RST+ACK, <code>[.]</code> = ACK.</li>
+  <li>Відповідає <b>ядро</b>, не програма: на порту немає сокета в стані LISTEN, і за правилами TCP (RFC 9293) на такий SYN ядро шле скидання. Оскільки в SYN не було ACK, RST має <code>seq 0</code> і <code>ack = seq + 1</code>.</li>
+  <li>Для відкритого порту так само відповідає ядро: рукостискання завершується ще до <code>accept()</code> у <code>open_server.py</code>.</li>
+</ul>
+
+<pre><code><span class="ann"># en0, 10.255.255.1, окремий запуск nc -G 20 (розділ B)</span>
+ 00:00:00.000000 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [SEW], seq 1128311429, ...  <span class="ann">← SYN з запитом ECN</span>
+ 00:00:01.000325 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], seq 1128311429, ...    <span class="ann">← той самий seq: повтор</span>
+ 00:00:02.000073 ...   00:00:03.000201 ...   00:00:03.999641 ...   00:00:05.000018 ...          <span class="ann">← щосекунди</span>
+ 00:00:07.000574 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...                    <span class="ann">← пауза 2 с</span>
+ 00:00:11.000815 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...                    <span class="ann">← пауза 4 с</span>
+ 00:00:19.001199 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...                    <span class="ann">← пауза 8 с; жодної відповіді</span></code></pre>
+<ul>
+  <li>TCP не відрізняє «пакет загубився» від «там нікого немає», тому робить те, що завжди: <b>повторює за таймером</b> з експоненційним backoff.</li>
+  <li>macOS: 5 повторів через 1 с, далі паузи подвоюються (2, 4, 8). Без тайм-ауту програми macOS здається через <code>net.inet.tcp.keepinit</code> = 75 000 мс.</li>
+  <li><code>[SEW]</code>: перший SYN просить ECN (E = ECE, W = CWR); повтори вже звичайні <code>[S]</code>. Ймовірно, обхід посередників, що відкидають SYN з ECN (наше припущення, у коді XNU не перевірено).</li>
+</ul>
+
+<h3>Docker: DROP проти REJECT (розділ E)</h3>
+<pre><code>=================== 2. iptables -j DROP: порт стає filtered ===================
+-A INPUT -p tcp -m tcp --dport 9105 -j DROP
+-A INPUT -p tcp -m tcp --dport 9115 -j DROP
+$ time nc -vz -w 8 127.0.0.1 9105
+nc: connect to 127.0.0.1 port 9105 (tcp) timed out: Operation now in progress
+real 8.017 s, код виходу nc: 1
+ 00:00:00.000000 IP 127.0.0.1.46118 &gt; 127.0.0.1.9105: Flags [S], seq 2897493398, ...
+ 00:00:01.035308 ... [S] ...   00:00:02.059444 ... [S] ...   00:00:03.083325 ... [S] ...
+ 00:00:04.107237 ... [S] ...   00:00:05.131446 ... [S] ...
+ 00:00:07.179351 IP 127.0.0.1.46118 &gt; 127.0.0.1.9105: Flags [S], ...    <span class="ann">← перша пауза 2 с</span>
+
+127.0.0.1:9115/tcp | тиша, тайм-аут 3 с | 3.01 с | <span class="f">filtered</span>   <span class="ann">← тут слухач ПРАЦЮЄ!</span>
+127.0.0.1:9105/tcp | тиша, тайм-аут 3 с | 3.00 с | <span class="f">filtered</span></code></pre>
+<ul>
+  <li>Linux 6.12 за замовчуванням (<code>tcp_syn_linear_timeouts=4</code>): спершу кілька повторів через 1 с, потім подвоєння. Та сама форма, що й на macOS.</li>
+  <li>Розділ F, <code>CLASSIC_BACKOFF=1</code>: SYN о 0, 1.04, 3.09, 7.12 с, тобто паузи 1, 2, 4 с, як у підручнику (RFC 6298: початковий RTO 1 с). Linux здається після <code>tcp_syn_retries=6</code> повторів.</li>
+  <li>tcpdump бачить відкинуті SYN, бо захоплює до ланцюжка INPUT у netfilter. «Filtered» не означає «пакет не дійшов», а означає «ніхто не відповів».</li>
+</ul>
+
+<pre><code>=================== 3. iptables -j REJECT --reject-with tcp-reset: виглядає як closed ===================
+ 00:00:00.000000 IP 127.0.0.1.41270 &gt; 127.0.0.1.9115: Flags [S], seq 2540892724, ...
+ 00:00:00.000009 IP 127.0.0.1.9115 &gt; 127.0.0.1.41270: Flags [R.], seq 0, ack 2540892725, win 0, length 0
+
+127.0.0.1:9115/tcp | RST: Connection refused | 0.28 мс | <span class="c">closed</span>   <span class="ann">← слухач працює, а виглядає closed</span></code></pre>
+<p>Фаєрвол підробляє точно такий RST, як ядро (<code>[R.]</code>, <code>seq 0</code>, <code>ack = seq + 1</code>). Ззовні це не відрізнити.</p>
+
+<h3>UDP: друга половина слайда (розділ E, частина 4)</h3>
+<pre><code>127.0.0.1:9105/udp | ICMP port unreachable | 0.54 мс | <span class="c">closed</span>
+127.0.0.1:9115/udp | тиша, тайм-аут 2 с    | 2.00 с  | <span class="f">open|filtered</span>   <span class="ann">← відкритий, але мовчить</span>
+ 00:00:00.000000 IP 127.0.0.1.46191 &gt; 127.0.0.1.9105: UDP, length 4
+ 00:00:00.000440 IP 127.0.0.1 &gt; 127.0.0.1: ICMP 127.0.0.1 udp port 9105 unreachable, length 40
+ 00:00:00.000682 IP 127.0.0.1.38559 &gt; 127.0.0.1.9115: UDP, length 4     <span class="ann">← відповіді немає зовсім</span>
+
++ iptables -A INPUT -p udp --dport 9105 -j DROP
+127.0.0.1:9105/udp | тиша, тайм-аут 2 с    | 2.00 с  | <span class="f">open|filtered</span>   <span class="ann">← те саме, що й відкритий</span></code></pre>
+<ul>
+  <li>У UDP немає рукостискання. Закритий порт: ядро шле ICMP type 3 code 3 «port unreachable», і «підключений» UDP-сокет отримує його як <code>ECONNREFUSED</code> на <code>recv()</code>.</li>
+  <li>Відкритий порт отримує датаграму, але програма мовчить (так поводиться більшість сервісів на незрозумілий запит). Відфільтрований теж мовчить. Тому nmap пише <code>open|filtered</code> і чекає тайм-аут на кожному такому порту.</li>
+  <li>На macOS (розділ D) та сама таблиця: 0.30 мс / 2.00 с.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>3. На чому наголосити</h2>
+
+<div class="note"><b>Момент «ага»</b>
+Закритий порт відповідає так само швидко, як відкритий (0.10 мс проти 0.17 мс), а порт за фаєрволом коштує повний тайм-аут (5.00 с). Стан порту видно секундоміром, без жодного сканера.</div>
+
+<h3>Ключові тези</h3>
+<ol>
+  <li><b>Сканер знає лише те, що повернулося.</b> SYN-ACK = open, RST = closed, тиша = filtered. Більше інформації немає.</li>
+  <li><b>Відповідає ядро, а не програма.</b> І SYN-ACK, і RST шле ядро; програма навіть не бере участі в рукостисканні.</li>
+  <li><b>Тиша = ретрансмісії.</b> Без відповіді TCP повторює SYN з тим самим seq і зростаючими паузами. Підручникові 1, 2, 4 с це класика; сучасні macOS і Linux спершу роблять кілька повторів через 1 с.</li>
+  <li><b>Адмін обирає, що бачить світ.</b> DROP ховає навіть працюючий сервіс (filtered), REJECT <code>tcp-reset</code> робить його схожим на closed.</li>
+  <li><b>UDP сканувати важко.</b> Відповідає лише закритий порт; відкритий і відфільтрований однаково мовчать, і кожен такий порт коштує тайм-аут.</li>
+</ol>
+
+<h3>Питання до аудиторії</h3>
+<div class="q"><b>До запуску:</b> що буде швидше, закритий порт чи порт за фаєрволом? Чому?<br><span class="a">Закритий: ядро одразу відповідає RST. За фаєрволом відповіді немає, клієнт чекає тайм-аут.</span></div>
+<div class="q"><b>Чому сканер «любить» закриті порти?</b><br><span class="a">Один RTT на порт, жодної двозначності, і це доводить, що хост живий. Тому на периметрі адміни віддають перевагу DROP.</span></div>
+<div class="q"><b>Чому в усіх повторах SYN той самий seq?</b><br><span class="a">Це ретрансмісія тієї самої спроби з'єднання, а не нове з'єднання.</span></div>
+<div class="q"><b>Чи може сканер бути певним, що порт закритий?</b><br><span class="a">Ні: REJECT <code>tcp-reset</code> підробляє RST, а слухач при цьому працює. Сканер знає лише, що прийшло.</span></div>
+<div class="q"><b>UDP:</b> відкритий порт мовчить і відфільтрований мовчить. Як nmap їх розрізняє?<br><span class="a">Надсилає справжній запит очікуваного сервісу (наприклад, DNS-запит на 53) і сподівається на відповідь.</span></div>
+
+<h3>Які хибні уявлення виправляє демо</h3>
+<ul>
+  <li>«Закритий порт = порт за фаєрволом». Ні: закритий відповідає RST, фаєрвол (DROP) мовчить.</li>
+  <li>«Filtered означає, що пакет не дійшов». tcpdump у Docker бачить кожен SYN; просто ніхто не відповідає.</li>
+  <li>«Повтори SYN завжди 1, 2, 4 с». На наших ядрах спершу йдуть лінійні повтори по 1 с (див. розділи B і E проти F).</li>
+  <li>«nc написав succeeded, отже UDP-порт відкритий». Для UDP це означає лише «ICMP-помилки не прийшло вчасно».</li>
+</ul>
+
+<h3>Застереження з тестування</h3>
+<div class="warn"><b>macOS: <code>-w</code> не обмежує connect()</b>
+<code>time nc -vz -w 5 10.255.255.1 80</code> на macOS висів <b>1:15.01</b> (розділ C). На macOS потрібно <code>-G 5</code>. На Linux (netcat-openbsd) <code>-w</code> обмежує і connect(). Якщо на слайді <code>-w</code> без уточнення ОС, виправте.</div>
+<div class="warn"><b><code>nc -u</code> бреше, і по-різному на різних ОС</b>
+macOS: <code>nc -vzu 127.0.0.1 9105</code> надрукував «succeeded!» з кодом 0 для <b>закритого</b> порту, хоча tcpdump показав ICMP port unreachable. Linux: той самий виклик нічого не надрукував і вийшов з кодом 1, а відкритий порт дав «succeeded» лише після тайм-ауту 2 с. Гарний живий момент, якщо є час.</div>
+<div class="warn"><b>Особисті дані у виводі</b>
+<code>expected_output.txt</code> (розділи A і B) містить домашню адресу <code>192.168.0.155</code>. Якщо проєктуєте файл, приберіть її або покажіть лише Docker-розділи.</div>
+<div class="warn"><b>Не перевірено</b>
+<code>FILTERED_HOST=192.0.2.1</code>; гілка <code>probe.py</code> «filtered (ICMP/маршрут)» (ICMP unreachable від маршрутизатора в нашій мережі не трапився); простий <code>-j REJECT</code> з ICMP за замовчуванням не запускали.</div>
+
+<div class="note"><b>Підсумок для слайда</b>
+TCP завжди відповідає (SYN-ACK або RST), якщо пакет ніхто не відкидає, тому кожен порт за один RTT стає open, closed або «підозріло тихим». UDP відповідає лише тоді, коли порт закритий, тож тиша двозначна і кожен тихий порт коштує повний тайм-аут.</div>
+
+</main>
+</body>
+</html>

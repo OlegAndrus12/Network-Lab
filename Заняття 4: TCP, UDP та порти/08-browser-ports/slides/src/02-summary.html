@@ -1,0 +1,20 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">./run_demo.sh · крок 3: browser_ports.py</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="cut">…</span>
+=== Сокети браузера за процесом ===
+
+Google Chrome Helper (Aperitif)  (PID 745, Chrome/Chromium): усього <span class="num">18</span> сокетів
+  <span class="tcp">TCP</span> → :<span class="p443">443</span>  (HTTPS, HTTP/1.1 або HTTP/2): <span class="num">5</span>
+  <span class="udp">UDP</span> → :<span class="p443">443</span>  (QUIC = HTTP/3):              <span class="num">3</span>   <span class="m">← той самий номер 443, інший протокол</span>
+  TCP → :80   (HTTP без шифрування):        0
+  TCP → :5228 (Google push (FCM)): 1
+  UDP слухає :5353 (mDNS, пошук пристроїв у LAN): 9
+  Локальні (ефемерні) порти: <span class="eph">52189–63385</span>  (9 шт.)
+<span class="cut">…</span>
+=== Ефемерні порти ===
+Браузер зараз використовує локальні порти <span class="eph">52189–63385</span>
+Діапазон ОС (macOS sysctl net.inet.ip.portrange.first/last): <span class="num">49152–65535</span>  (16384 портів)
+У діапазоні ОС: <span class="num">12 з 12</span>                                  <span class="m">← усі порти з діапазону ОС</span>
+Для порівняння: IANA 49152–65535; Linux за замовчуванням 32768–60999; Windows 49152–65535</pre>
+</div></body></html>

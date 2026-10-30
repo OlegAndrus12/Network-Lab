@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listen Backlog Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --card: #ffffff; --border: #dedbd2;
+  --code-bg: #f2f0ea; --accent: #1f5fa8; --warn-bg: #fff4dc; --warn-border: #d9a520;
+  --ok-bg: #e8f4ec; --ok-border: #3c8b57; --hl: #fde58a; --hl-fg: #1d1d1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+    --code-bg: #26282c; --accent: #7fb2ee; --warn-bg: #3a2f14; --warn-border: #b98a1c;
+    --ok-bg: #18301f; --ok-border: #4f9e69; --hl: #6b5a12; --hl-fg: #fff6cc;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+  --code-bg: #26282c; --accent: #7fb2ee; --warn-bg: #3a2f14; --warn-border: #b98a1c;
+  --ok-bg: #18301f; --ok-border: #4f9e69; --hl: #6b5a12; --hl-fg: #fff6cc;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+mark { background: var(--hl); color: var(--hl-fg); padding: 0 2px; border-radius: 3px; }
+.ann { color: var(--accent); }
+.note { color: var(--muted); font-size: 0.9rem; }
+.box { border-left: 4px solid var(--warn-border); background: var(--warn-bg); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+.ok { border-left-color: var(--ok-border); background: var(--ok-bg); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0; }
+.tw { overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+nav ol { padding-left: 20px; margin: 8px 0; }
+li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Demo 07: the server that never calls accept()</h1>
+<p class="sub">Topic 4: TCP, UDP and ports. Lecturer notes, read before class. Folder <code>07-listen-backlog/</code>, port 9107 (9117 as a spare).</p>
+
+<nav><ol>
+  <li><a href="#what">What the demo shows</a></li>
+  <li><a href="#mechanism">The mechanism</a></li>
+  <li><a href="#run">Running it live (macOS, Docker/Linux)</a></li>
+  <li><a href="#see">What students will see (real output)</a></li>
+  <li><a href="#ask">Things to point out and ask</a></li>
+  <li><a href="#gotchas">Gotchas and recovery</a></li>
+  <li><a href="#fallback">1-minute fallback</a></li>
+</ol></nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>Supports the slide <strong>«Життєвий цикл TCP-сокета»</strong> and <strong>exercise 8</strong> (the note «Send-Q = backlog» for a listening socket).</p>
+<p>A server calls <code>listen(2)</code> and then never calls <code>accept()</code>. Five clients connect. Students see that:</p>
+<ul>
+  <li>the <strong>kernel completes the three-way handshake on its own</strong>. The first clients are <code>ESTABLISHED</code> and have already sent data, although the program has not accepted them;</li>
+  <li>those finished connections wait in the listening socket's <strong>accept queue</strong>, which is visible: <code>ss -ltn</code> on Linux (Recv-Q = queue length, Send-Q = backlog) and <code>netstat -Lan</code> on macOS (<code>qlen/incqlen/maxqlen</code>);</li>
+  <li>clients that don't fit are stuck in <code>SYN-SENT</code>. Their SYNs are silently dropped and retransmitted (tcpdump shows this);</li>
+  <li>once the server starts calling <code>accept()</code>, the queue drains and the waiting clients get in on their <em>next</em> SYN retransmit.</li>
+</ul>
+<p>Linux and macOS differ here in ways worth showing. All of the differences below come from real runs; see <code>expected_output.txt</code>.</p>
+
+<h3>Files</h3>
+<div class="tw"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>server.py</code></td><td><code>listen(--backlog)</code> without <code>accept()</code>. Starts accepting on Enter (when run in a terminal), on <code>kill -USR1 PID</code>, or after <code>--accept-after N</code> s. Prints each accepted client and the 16 bytes that client sent while it was waiting.</td></tr>
+<tr><td><code>clients.py</code></td><td>Opens <code>-n</code> connections with non-blocking <code>connect()</code> (stdlib only, no <code>nc</code> flag differences). Reports which connects completed and which are still waiting, then keeps them open and reports when the waiting ones get in, or fail (<code>ETIMEDOUT</code>).</td></tr>
+<tr><td><code>run_demo.sh</code></td><td>The whole demo in one command (macOS or Linux): server, clients, queue snapshots, Enter to start <code>accept()</code>, snapshots again, and a tcpdump SYN count if tcpdump runs without sudo.</td></tr>
+<tr><td><code>run_docker.sh</code></td><td>Runs <code>run_demo.sh</code> in a Linux container (<code>ss</code>, <code>nstat</code>, <code>tcpdump</code> as root). <code>cookies</code> mode adds a 50 ms delay on <code>lo</code> to show the SYN-cookie case.</td></tr>
+<tr><td><code>Dockerfile</code></td><td><code>python:3.12-slim</code> + iproute2, tcpdump, procps, netcat-openbsd. Image name <code>demo07-backlog</code>.</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>Real output: macOS (A, D), Linux (B, E, F), tcpdump excerpts (C), and the <code>nc</code> variant (G).</td></tr>
+</table></div>
+
+<h2 id="mechanism">2. The mechanism</h2>
+<h3>listen() and accept() split the work</h3>
+<p><code>listen()</code> puts the socket into <code>LISTEN</code>. From then on, the <strong>kernel</strong> answers SYNs, sends SYN-ACKs and receives the final ACKs. A fully established connection is put in the listening socket's <strong>accept queue</strong>. <code>accept()</code> does not do a handshake: it only takes the next finished connection off that queue and gives the process a new file descriptor. The <code>backlog</code> argument limits how long that queue may get.</p>
+<pre><code>client SYN ─▶ ┌─────────────────────────┐  final ACK  ┌────────────────────────┐ accept()
+              │ SYN queue (half-open,   │ ──────────▶ │ accept queue (finished │ ────────▶ process
+              │ SYN-RECV, "incqlen")    │             │ ESTABLISHED, "qlen")   │
+              └─────────────────────────┘             └────────────────────────┘
+                both limited by backlog                  full? new SYNs are dropped
+</code></pre>
+<p>A connection in the accept queue is a real TCP connection. Its receive buffer works: in our runs each waiting client's 16-byte message was ACKed by the kernel and shows as <code>Recv-Q 16</code> on the server side, long before <code>accept()</code>.</p>
+
+<h3>Linux (verified on kernel 6.12 in Docker)</h3>
+<ul>
+  <li><strong>For a LISTEN socket <code>ss</code> changes what its columns mean</strong>: <code>Recv-Q</code> = current accept-queue length, <code>Send-Q</code> = backlog (the value passed to <code>listen()</code>, capped by <code>net.core.somaxconn</code>; 4096 in the container). For every other state these are bytes in the buffers. This is the exercise 8 note.</li>
+  <li><strong>The queue holds backlog + 1.</strong> The "full" check is <code>queue length &gt; backlog</code>, so with <code>listen(2)</code> we saw <code>Recv-Q 3</code> every time with the scripted clients.</li>
+  <li><strong>When the accept queue is full, an incoming SYN is dropped silently</strong>: no RST and no SYN-ACK. The kernel counts it in <code>TcpExtListenOverflows</code> / <code>TcpExtListenDrops</code> (<code>nstat</code>). The client stays in <code>SYN-SENT</code> and retransmits. On this kernel (<code>tcp_syn_linear_timeouts = 4</code>) the retransmits came at about 1 s intervals at first, then 2, 4, 8 s. The client gets in on the first retransmit after <code>accept()</code> frees a slot, so the delay between "server accepts" and "client connects" is anywhere from 0 to several seconds.</li>
+  <li><strong>The SYN queue is also limited by the backlog.</strong> When many SYNs arrive before any handshake completes (we forced this with a 50 ms netem delay and simultaneous connects), the SYN queue overflows first. With <code>tcp_syncookies = 1</code> (the default) the kernel answers with a <em>SYN cookie</em>, a stateless SYN-ACK. The client completes the handshake and believes it is <code>ESTABLISHED</code>. When its ACK arrives the accept queue is full, so the kernel drops that ACK (<code>tcp_abort_on_overflow = 0</code>) and keeps no state at all: the server side shows <em>no</em> socket for these clients, not even <code>SYN-RECV</code>. The client keeps retransmitting its data. Each retransmit carries the cookie again, and after <code>accept()</code> frees space the next one creates the connection. Counters in that run: <code>TcpExtSyncookiesSent 2</code>, <code>TcpExtSyncookiesRecv 8</code>, <code>TcpExtListenOverflows 8</code>.</li>
+  <li>With <code>tcp_syncookies = 0</code>, the same burst just drops the extra SYNs (clients in <code>SYN-SENT</code>, like the normal case).</li>
+  <li>We did <strong>not</strong> observe the textbook "server in <code>SYN-RECV</code> retransmitting SYN-ACKs" state in any run. In both modes the kernel either dropped the SYN early or used a cookie. We did not test <code>tcp_abort_on_overflow = 1</code> (it would send RST instead of silently dropping the final ACK).</li>
+  <li>Rare race: once, with 5 <code>nc</code> processes started at the same moment, <code>Recv-Q</code> reached 4 with backlog 2. The full-queue check is not atomic with adding to the queue, so simultaneous handshakes on several CPUs can overshoot. In 9 other runs it was 3.</li>
+</ul>
+
+<h3>macOS (verified on macOS 15, Darwin 24.6)</h3>
+<ul>
+  <li><code>netstat -Lan -p tcp</code> prints <code>qlen/incqlen/maxqlen</code> for each listening socket: finished connections waiting for accept / half-open connections / the limit. With <code>listen(2)</code> we saw <code>2/0/2</code>: the queue holds <strong>exactly backlog</strong>, not backlog + 1. <code>incqlen</code> stayed 0 on loopback because the handshake completes instantly. <code>kern.ipc.somaxconn</code> is 128 on this Mac.</li>
+  <li><code>netstat -an</code> has no special meaning for Recv-Q/Send-Q on <code>LISTEN</code> (it showed <code>0 0</code>), so on macOS use <code>-L</code> for the queue.</li>
+  <li>Overflowing clients sit in <code>SYN_SENT</code>. Their SYNs are dropped silently, as on Linux, but the retransmit timing is very different on loopback: about every 30 ms for the first five, then doubling (60, 120, 240, 480 ms, 1 s, 2 s, 2 s). After <strong>13 SYNs in about 6 seconds</strong> the client gives up with <code>ETIMEDOUT</code>. Our interpretation (not verified in XNU source): the BSD stack allows 12 retransmits, and the loopback RTO is tiny, so the 12 retransmits are used up within seconds. On a real network the same 12 retransmits would take much longer.</li>
+  <li>After a few retransmits macOS drops the window-scale and timestamp options from the SYN (seen in the raw tcpdump), a fallback for middleboxes that drop unusual SYNs.</li>
+  <li><code>netstat -s -p tcp</code> showed <code>0 listen queue overflow</code> even after overflows in our runs, so don't use it as evidence.</li>
+</ul>
+
+<h2 id="run">3. Running it live</h2>
+<div class="box ok"><strong>Before class:</strong> build the Docker image once while you have internet: <code>docker build -t demo07-backlog .</code> in the folder (or just run <code>./run_docker.sh</code> once). Do one dry run of <code>./run_demo.sh</code> on the lecture laptop.</div>
+
+<h3>Option A: one command (recommended)</h3>
+<pre><code>cd 07-listen-backlog
+./run_demo.sh                    # macOS or Linux; press Enter when you want accept() to start
+AUTO=1 ./run_demo.sh             # no Enter: accept() starts 1 s after the queue snapshot
+N=8 BACKLOG=3 ./run_demo.sh      # other numbers
+PORT=9117 ./run_demo.sh          # spare port</code></pre>
+<p>Steps it prints: <code>=== 1</code> server and clients start; <code>=== 2</code> queue snapshot (<code>netstat -Lan</code> and <code>netstat -an</code> on macOS; <code>ss -ltn</code>, <code>ss -tan</code>, <code>nstat</code> on Linux); Enter; <code>=== 3</code> accept() and draining; <code>=== 4</code> snapshot again; <code>=== 6</code> per-client SYN and data counts from tcpdump.</p>
+<div class="box"><strong>macOS: press Enter within about 4 s of the snapshot.</strong> The waiting clients give up about 6 s after their first SYN. If you are slower, they print <code>ETIMEDOUT</code>. That is a fine teaching moment as well (see run D in <code>expected_output.txt</code>), but if you want to show the drain, be quick or use <code>AUTO=1</code>.</div>
+
+<h3>Option B: Linux in Docker</h3>
+<pre><code>./run_docker.sh                         # normal: extra clients in SYN-SENT, ss shows Recv-Q 3 / Send-Q 2
+./run_docker.sh cookies                 # 50 ms delay + simultaneous connects: SYN-cookie case
+SYNCOOKIES=0 ./run_docker.sh cookies    # same burst, cookies off: back to SYN-SENT
+AUTO=1 ./run_docker.sh                  # no Enter</code></pre>
+<p>On Linux the drain can take a few seconds (next SYN retransmit), so the script waits 10 s (<code>DRAIN=10</code>) before the second snapshot.</p>
+
+<h3>Option C: by hand, with nc (more "live")</h3>
+<p><strong>macOS</strong>, three terminals in the folder:</p>
+<pre><code># Terminal 1: server
+python3 server.py                         # listen(2), waits for Enter
+
+# Terminal 2: five clients (-d: nc does not read stdin)
+for i in 1 2 3 4 5; do nc -d 127.0.0.1 9107 &amp; done
+
+# Terminal 3: look at the queue
+netstat -Lan -p tcp | grep 9107           # 2/0/2  = qlen/incqlen/maxqlen
+netstat -an -p tcp | grep '\.9107 '       # 2 pairs ESTABLISHED + 3 SYN_SENT
+lsof -nP -iTCP:9107                       # same, with process names
+
+# Terminal 1: press Enter -> accept() No 1, 2, then 3, 4, 5 as their SYNs get through
+# cleanup (terminal 2):
+pkill -f 'nc -d 127.0.0.1 9107'</code></pre>
+<p>Use <code>nc -d</code>. Without it, and with stdin at EOF, macOS <code>nc</code> sends FIN right after connecting (we saw <code>CLOSE_WAIT</code>/<code>FIN_WAIT_2</code> on connections still in the queue). Without <code>-d</code> in an interactive shell, a background <code>nc</code> that tries to read the terminal may also be stopped by the shell. Remember the 6-second window on macOS for the three waiting <code>nc</code>s.</p>
+<p><strong>Linux in Docker</strong>, two terminals:</p>
+<pre><code># Terminal 1
+docker run --rm -it --name demo07-lab --cap-add NET_ADMIN --cap-add NET_RAW \
+  -v "$PWD":/demo demo07-backlog bash
+python3 server.py
+
+# Terminal 2
+docker exec -it demo07-lab bash
+tcpdump -i lo -n 'tcp port 9107' &amp;       # optional: watch the SYN retransmits
+for i in 1 2 3 4 5; do nc -d 127.0.0.1 9107 &amp; done
+ss -ltn 'sport = :9107'                   # LISTEN  Recv-Q 3  Send-Q 2
+ss -tan '( sport = :9107 or dport = :9107 )'
+nstat -az TcpExtListenOverflows TcpExtListenDrops
+# Terminal 1: Enter. Then ss -ltn again: Recv-Q 0</code></pre>
+<p>On a native Linux laptop the same commands work without Docker. <code>run_demo.sh</code> starts tcpdump only if you are root; otherwise it skips the capture.</p>
+
+<h2 id="see">4. What students will see (real output)</h2>
+<h3>Linux, step 2: the queue while nobody calls accept()</h3>
+<pre><code>[21:01:34.9] Звіт:
+  клієнт #1 (порт 53436): connect() завершився за 0.00 с
+  клієнт #2 (порт 53440): connect() завершився за 0.00 с
+  клієнт #3 (порт 53442): connect() завершився за 0.00 с     <span class="ann">← 3 = backlog + 1</span>
+  клієнт #4 (порт 53446): connect() ЩЕ ЧЕКАЄ (SYN без відповіді?)
+  клієнт #5 (порт 53452): connect() ЩЕ ЧЕКАЄ (SYN без відповіді?)
+
+$ ss -ltn 'sport = :9107'
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN <mark>3</mark>      <mark>2</mark>          127.0.0.1:9107      0.0.0.0:*    <span class="ann">← Recv-Q = queue, Send-Q = backlog</span>
+$ ss -tan '( sport = :9107 or dport = :9107 )'
+ESTAB    <mark>16</mark>     0          127.0.0.1:9107     127.0.0.1:53442    <span class="ann">← server side: 16 bytes nobody has read</span>
+ESTAB    0      0          127.0.0.1:53442    127.0.0.1:9107     <span class="ann">← client side: "connected"</span>
+<mark>SYN-SENT</mark> 0      1          127.0.0.1:53452    127.0.0.1:9107     <span class="ann">← didn't fit (Send-Q 1 = the SYN)</span>
+SYN-SENT 0      1          127.0.0.1:53446    127.0.0.1:9107
+...
+TcpExtListenOverflows           4                  0.0             <span class="ann">← 2 clients × 2 SYNs dropped so far</span></code></pre>
+
+<h3>Linux, step 3: accept() starts, the waiting clients get in</h3>
+<pre><code>[21:01:36.2] Починаю accept()
+[21:01:36.2] accept() №1: 127.0.0.1:53436  повідомлення: клієнт #1   <span class="ann">← data sent 3 s ago, still there</span>
+[21:01:36.2] accept() №2: 127.0.0.1:53440  повідомлення: клієнт #2
+[21:01:36.2] accept() №3: 127.0.0.1:53442  повідомлення: клієнт #3
+[21:01:36.5] клієнт #4 (порт 53446): connect() нарешті завершився (чекав 3.1 с)
+[21:01:36.5] accept() №4: 127.0.0.1:53446  повідомлення: клієнт #4
+...
+LISTEN 0      2          127.0.0.1:9107      0.0.0.0:*              <span class="ann">← queue empty</span></code></pre>
+<p>tcpdump for client 53446 (options removed). The same SYN (same seq) is sent four times, about 1 s apart, and the fourth one gets a SYN-ACK because <code>accept()</code> has just freed a slot:</p>
+<pre><code>21:01:33.525383 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0
+21:01:34.538447 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0
+21:01:35.562251 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0
+21:01:36.586237 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0
+21:01:36.586256 IP 127.0.0.1.9107 &gt; 127.0.0.1.53446: Flags [S.], seq 1887696490, ack 240545859, win 65483, length 0
+21:01:36.586274 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [.], ack 1, win 512, length 0
+21:01:36.586403 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [P.], seq 1:17, ack 1, win 512, length 16</code></pre>
+
+<h3>macOS, step 2</h3>
+<pre><code>$ netstat -Lan -p tcp      # qlen/incqlen/maxqlen
+Current listen queue sizes (qlen/incqlen/maxqlen)
+Listen         Local Address
+<mark>2/0/2</mark>          127.0.0.1.9107          <span class="ann">← full: 2 waiting, 0 half-open, limit 2 (no +1)</span>
+$ netstat -an -p tcp | grep 9107
+tcp4       0      0  127.0.0.1.59145        127.0.0.1.9107         SYN_SENT
+tcp4       0      0  127.0.0.1.59144        127.0.0.1.9107         SYN_SENT
+tcp4       0      0  127.0.0.1.59143        127.0.0.1.9107         SYN_SENT
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59142        ESTABLISHED
+tcp4       0      0  127.0.0.1.59142        127.0.0.1.9107         ESTABLISHED
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59141        ESTABLISHED
+tcp4       0      0  127.0.0.1.59141        127.0.0.1.9107         ESTABLISHED
+tcp4       0      0  127.0.0.1.9107         *.*                    LISTEN      <span class="ann">← 0 0: no queue info here</span></code></pre>
+<p>After <code>accept()</code> starts (section A): the queue becomes <code>0/0/2</code>, and clients 3–5 print <code>connect() нарешті завершився (чекав 3.9–4.0 с)</code>.</p>
+<p>macOS tcpdump for one waiting client: 12 SYNs, first about every 30 ms, then doubling; the 12th got the SYN-ACK after <code>accept()</code>:</p>
+<pre><code>00:01:11.900595 ... Flags [S], seq 270292374     00:01:12.139256 ... Flags [S]
+00:01:11.956209 ... Flags [S]                    00:01:12.260042 ... Flags [S]
+00:01:11.987285 ... Flags [S]                    00:01:12.500603 ... Flags [S]
+00:01:12.018345 ... Flags [S]                    00:01:12.981496 ... Flags [S]
+00:01:12.048493 ... Flags [S]                    00:01:13.941669 ... Flags [S]
+00:01:12.079070 ... Flags [S]                    00:01:15.862598 ... Flags [S]
+                                                 00:01:15.862683 9107 &gt; 59143: Flags [S.]   <span class="ann">← in</span></code></pre>
+<p>If accept() comes too late (run D, <code>ACCEPT_DELAY=8</code>): 13 SYNs, then</p>
+<pre><code>[00:01:26.6] клієнт #3 (порт 59148): connect() не вдався: ETIMEDOUT (Operation timed out)</code></pre>
+
+<h3>Linux, SYN-cookie case (<code>./run_docker.sh cookies</code>)</h3>
+<pre><code>  клієнт #4 (порт 41598): connect() завершився за 0.10 с       <span class="ann">← all 5 "connected"!</span>
+  клієнт #5 (порт 41606): connect() завершився за 0.10 с
+LISTEN 3      2          127.0.0.1:9107       0.0.0.0:*         <span class="ann">← yet only 3 in the queue</span>
+ESTAB  0      <mark>16</mark>         127.0.0.1:41598    127.0.0.1:9107    <span class="ann">← client: data unacknowledged</span>
+ESTAB  0      16         127.0.0.1:41606    127.0.0.1:9107    <span class="ann">← and no server-side line for 41598/41606</span>
+TcpExtSyncookiesSent            2
+TcpExtSyncookiesRecv            8
+...
+[21:01:58.2] accept() №4: 127.0.0.1:41598  повідомлення: клієнт #4   <span class="ann">← 5.3 s after accept() started</span></code></pre>
+<p>tcpdump shows a normal handshake, then the same 16 bytes retransmitted 6 times (0.3, 0.3, 0.6, 1.3, 2.5, 5.4 s) until one arrives after <code>accept()</code> and is finally ACKed.</p>
+
+<h2 id="ask">5. Things to point out and ask</h2>
+<ol>
+  <li><strong>"Who did the handshake?"</strong> Not the program: it never called <code>accept()</code>. The kernel did. Clients 1–3 even sent data, and the kernel ACKed it (<code>Recv-Q 16</code> on the server side).</li>
+  <li><strong>Exercise 8:</strong> point at <code>LISTEN 3 2</code>. For a listening socket <code>Send-Q</code> is the backlog and <code>Recv-Q</code> is the queue. Ask: "Why 3 and not 2?" (Linux keeps backlog + 1; macOS showed exactly 2.)</li>
+  <li><strong>"What does the server send to client 4?"</strong> Nothing. No RST and no SYN-ACK: the SYN is just dropped. Ask why dropping is better than refusing (RST would make the client fail immediately; a drop makes it retry, which is right for a momentary overload).</li>
+  <li><strong>"Why didn't client 4 connect the instant accept() ran?"</strong> The server doesn't call anybody back. The client gets in on its next SYN retransmit. This is where "the site loads after exactly 1 s / 3 s" latency comes from on overloaded servers.</li>
+  <li><strong>Same API, different OS:</strong> macOS gave up after about 6 s on loopback; Linux clients were still retransmitting SYNs after 19 s in our runs (we did not wait for the Linux give-up). Both are valid TCP.</li>
+  <li><strong>Cookie case (optional, advanced):</strong> the client believes it is <code>ESTABLISHED</code> while the server has no record of it. Connected does not mean accepted. Link to SYN floods: SYN cookies exist so a full SYN queue doesn't lock out real clients.</li>
+  <li><strong>Real servers:</strong> a server that is slow to <code>accept()</code> (blocked event loop, all workers busy) looks exactly like this from outside. That's why backlog is a tuning knob (Nginx and Node.js use 511 by default on Linux) and why <code>somaxconn</code> matters.</li>
+</ol>
+
+<h2 id="gotchas">6. Gotchas and recovery</h2>
+<div class="tw"><table>
+<tr><th>Symptom</th><th>Cause / what to do</th></tr>
+<tr><td>macOS: waiting clients print <code>ETIMEDOUT</code> before you press Enter</td><td>The 6-second window. Explain it ("the client gave up after 13 SYNs") and rerun with <code>AUTO=1 ./run_demo.sh</code>.</td></tr>
+<tr><td>Linux: after Enter, clients 4–5 take several seconds</td><td>Expected: they get in on the next SYN retransmit (up to 8 s later if you waited long). The script waits 10 s.</td></tr>
+<tr><td><code>Address already in use</code></td><td>An old <code>server.py</code> is still running: <code>pkill -f server.py</code>, or use <code>PORT=9117</code>.</td></tr>
+<tr><td>Lots of <code>TIME_WAIT</code> lines in manual netstat/ss</td><td>Leftovers from the previous run (server closed first). The scripts filter them out; in manual mode add <code>| grep -v TIME_WAIT</code>.</td></tr>
+<tr><td>Linux shows <code>Recv-Q 4</code> with backlog 2</td><td>A rare race with simultaneous connects (seen once with 5 parallel <code>nc</code>). Just say "the limit is approximate under races" or rerun.</td></tr>
+<tr><td>Step 6 (SYN counts) missing</td><td>tcpdump needs root on Linux, or <code>/dev/bpf*</code> access on macOS (Wireshark's ChmodBPF / <code>access_bpf</code> group). Without it the capture is skipped; the rest of the demo still works.</td></tr>
+<tr><td><code>nstat</code> numbers bigger than expected</td><td>On a native Linux host they are system-wide counters. In Docker they count from container start, so <code>run_docker.sh</code> starts at 0.</td></tr>
+<tr><td><code>run_docker.sh</code> hangs at build</td><td>No internet for <code>apt-get</code>. Build the image in advance, or fall back to macOS plus <code>expected_output.txt</code>.</td></tr>
+<tr><td>Wrong Python / odd errors</td><td>The scripts use <code>python3</code> from <code>PATH</code> (3.9+ works). Override with <code>PYTHON=/path/to/python3 ./run_demo.sh</code>. A <code>python3</code> shell alias or function is not visible inside the bash scripts.</td></tr>
+<tr><td>Need to stop everything</td><td><code>Ctrl+C</code> in <code>run_demo.sh</code> kills the server, the clients and tcpdump. Manual mode: <code>Ctrl+C</code> in the server, <code>pkill -f 'nc -d 127.0.0.1 9107'</code>, and <code>docker rm -f demo07-lab</code>.</td></tr>
+</table></div>
+
+<h2 id="fallback">7. 1-minute fallback</h2>
+<p>Open <code>expected_output.txt</code> and walk through three spots:</p>
+<ol>
+  <li><strong>Section B, step 2</strong> (Linux): <code>LISTEN 3 2</code>, three <code>ESTAB</code> pairs with <code>Recv-Q 16</code>, two <code>SYN-SENT</code>. "The program never accepted, yet three clients are connected; two are knocking."</li>
+  <li><strong>Section C</strong>: the same SYN four times on Linux, twelve times on macOS, then the SYN-ACK once <code>accept()</code> frees a slot.</li>
+  <li><strong>Section A, steps 2 and 4</strong> (macOS): <code>2/0/2</code> becomes <code>0/0/2</code>, and the server prints <code>accept() №1…№5</code>.</li>
+</ol>
+<p class="note">All numbers on this page are from real runs on 22–23 October 2026: macOS 15 (Darwin 24.6) and Linux 6.12.76-linuxkit in Docker 29. Ports and timestamps change every run.</p>
+</main>
+</body>
+</html>

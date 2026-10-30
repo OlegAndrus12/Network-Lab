@@ -1,0 +1,18 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">macOS 15 · Chrome · lsof +c 0 -i -P -n</span></div>
+<pre><span class="p">$</span> <span class="cmd">lsof +c 0 -i -P -n | grep -iE 'chrome|safari'</span>
+<span class="m"># COMMAND у всіх рядках: Google\x20Chrome\x20Helper\x20(Aperitif)</span>
+<span class="m"># стовпці COMMAND, USER, FD, TYPE, DEVICE, SIZE/OFF прибрано; IP анонімізовано</span>
+<span class="h">PID  NODE NAME</span>
+745  <span class="udp">UDP</span>  192.168.0.10:<span class="eph">52189</span>->203.0.113.1:<span class="p443">443</span>                <span class="m">← QUIC = HTTP/3: UDP, без стану</span>
+<span class="cut">…</span>
+745  <span class="tcp">TCP</span>  192.168.0.10:<span class="eph">57765</span>->203.0.113.3:<span class="p443">443</span> (ESTABLISHED)
+745  <span class="udp">UDP</span>  192.168.0.10:<span class="eph">58109</span>->203.0.113.4:<span class="p443">443</span>                <span class="m">← ще QUIC</span>
+745  <span class="udp">UDP</span>  192.168.0.10:<span class="eph">53106</span>->203.0.113.5:<span class="p443">443</span>
+745  <span class="tcp">TCP</span>  192.168.0.10:<span class="eph">54892</span>->203.0.113.6:<span class="p443">443</span> (ESTABLISHED)
+<span class="row">745  <span class="tcp">TCP</span>  192.168.0.10:<span class="eph">52910</span>->203.0.113.3:<span class="p443">443</span> (ESTABLISHED)</span>  <span class="m">← той самий сервер і :443,</span>
+<span class="row">745  <span class="tcp">TCP</span>  192.168.0.10:<span class="eph">63385</span>->203.0.113.3:<span class="p443">443</span> (ESTABLISHED)</span>  <span class="m">  але різні локальні</span>
+<span class="row">745  <span class="tcp">TCP</span>  192.168.0.10:<span class="eph">54477</span>->203.0.113.3:<span class="p443">443</span> (ESTABLISHED)</span>  <span class="m">  (ефемерні) порти</span>
+745  <span class="udp">UDP</span>  *:5353                                             <span class="m">← mDNS: слухає, не :443</span>
+<span class="cut">…</span></pre>
+</div></body></html>

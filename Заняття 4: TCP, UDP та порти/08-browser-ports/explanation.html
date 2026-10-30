@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Ports Demo</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --card: #ffffff; --border: #dedbd2;
+  --code-bg: #f2f0ea; --accent: #1f5fa8; --warn-bg: #fff4dc; --warn-border: #d9a520;
+  --ok-bg: #e8f4ec; --ok-border: #3c8b57; --hl: #fde58a; --hl-fg: #1d1d1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+    --code-bg: #26282c; --accent: #7fb2ee; --warn-bg: #3a2f14; --warn-border: #b98a1c;
+    --ok-bg: #18301f; --ok-border: #4f9e69; --hl: #6b5a12; --hl-fg: #fff6cc;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181a; --fg: #e7e5df; --muted: #a3a09a; --card: #1f2023; --border: #34363a;
+  --code-bg: #26282c; --accent: #7fb2ee; --warn-bg: #3a2f14; --warn-border: #b98a1c;
+  --ok-bg: #18301f; --ok-border: #4f9e69; --hl: #6b5a12; --hl-fg: #fff6cc;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+mark { background: var(--hl); color: var(--hl-fg); padding: 0 2px; border-radius: 3px; }
+.note { color: var(--muted); font-size: 0.9rem; }
+.box { border-left: 4px solid var(--warn-border); background: var(--warn-bg); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+.ok { border-left-color: var(--ok-border); background: var(--ok-bg); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 8px 0; }
+.tw { overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+nav ol { padding-left: 20px; margin: 8px 0; }
+li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Demo 08: your browser's ports right now</h1>
+<p class="sub">Topic 4: TCP, UDP and ports. Lecturer notes, read before class. Folder <code>08-browser-ports/</code>.</p>
+
+<nav><ol>
+  <li><a href="#what">What the demo shows</a></li>
+  <li><a href="#mechanism">The mechanism</a></li>
+  <li><a href="#run">Running it live (macOS, Linux, Windows)</a></li>
+  <li><a href="#see">What students will see (real output)</a></li>
+  <li><a href="#ask">Things to point out and ask</a></li>
+  <li><a href="#gotchas">Gotchas and recovery</a></li>
+  <li><a href="#fallback">1-minute fallback</a></li>
+</ol></nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>Supports the slide <strong>«Порт — номер процесу на хості»</strong> and the QUIC / <strong>443/udp</strong> point. Students open YouTube and list their own browser's sockets. They see:</p>
+<ul>
+  <li>many TCP connections to remote port <code>:443</code>, each with its own <strong>local ephemeral port</strong> (49152–65535 on macOS/Windows, 32768–60999 on Linux);</li>
+  <li>in Chrome (and other Chromium browsers), <strong>UDP sockets to :443</strong>. That is QUIC, the transport under HTTP/3;</li>
+  <li>that all of these belong to <em>one process</em> (on macOS, Chrome's network service helper), which is the point of the slide: the port number tells the OS which process gets the data.</li>
+</ul>
+<p>It takes 2–3 minutes, and it is about their own machines, which makes the theory stick.</p>
+
+<h3>Files</h3>
+<div class="tw"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>run_demo.sh</code></td><td>One command (macOS/Linux): shows the slide command failing, the fixed command, the per-process summary and the OS ephemeral range. Remote IPs are anonymised by default (<code>ANON=0</code> to show real ones).</td></tr>
+<tr><td><code>browser_ports.py</code></td><td>Summariser. Runs <code>lsof +c 0 -i -P -n</code> (or reads saved output via <code>--file</code>) and groups by process: TCP→:443, UDP→:443 (QUIC), TCP→:80, other ports, ephemeral port range, comparison with the OS range. Flags: <code>--anonymize</code>, <code>--lines N</code>, <code>--all</code>, <code>--pattern</code>.</td></tr>
+<tr><td><code>linux_check.sh</code></td><td>Linux in Docker (container <code>demo08-linux</code>): prints <code>ip_local_port_range</code>, and <code>lsof</code>/<code>ss -tunp</code> for one TCP and one UDP socket to <code>1.1.1.1:443</code>.</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>Real captured output (macOS + Linux), remote IPs anonymised.</td></tr>
+</table></div>
+
+<h2 id="mechanism">2. The mechanism</h2>
+<h3>A port identifies a process's socket on a host</h3>
+<p>An IP address gets a packet to the host. The port gets it to a socket, and the socket belongs to a process. The kernel picks the socket by the <strong>5-tuple</strong> (protocol, local IP, local port, remote IP, remote port). The server side is always <code>:443</code>; the client side is a different <strong>ephemeral port</strong> the kernel picked at <code>connect()</code> time. That is why one browser can have 20 connections to the same <code>:443</code> on the same server with no confusion: every local port is different.</p>
+<p>Ephemeral ranges (checked on the demo machines where marked):</p>
+<div class="tw"><table>
+<tr><th>OS</th><th>Range</th><th>How to check</th></tr>
+<tr><td>macOS 15</td><td>49152–65535 (verified)</td><td><code>sysctl net.inet.ip.portrange.first net.inet.ip.portrange.last</code></td></tr>
+<tr><td>Linux</td><td>32768–60999 (verified in Docker)</td><td><code>cat /proc/sys/net/ipv4/ip_local_port_range</code></td></tr>
+<tr><td>Windows (Vista+)</td><td>49152–65535 default (not tested here)</td><td><code>netsh int ipv4 show dynamicport tcp</code></td></tr>
+<tr><td>IANA recommendation</td><td>49152–65535</td><td>RFC 6335</td></tr>
+</table></div>
+
+<h3>Why QUIC runs over UDP</h3>
+<ul>
+  <li><strong>TCP can't be changed in practice.</strong> It lives in OS kernels, and middleboxes (NATs, firewalls) inspect and rewrite TCP headers. A new transport protocol number would be dropped by most of them. UDP passes through almost everywhere, so QUIC uses UDP as a thin envelope and implements reliability, ordering, congestion control and flow control itself, in user space (inside the browser). It can ship with each browser release.</li>
+  <li><strong>No head-of-line blocking between streams.</strong> HTTP/2 multiplexes many requests over one TCP connection; one lost TCP segment stalls all of them, because TCP delivers one ordered byte stream. QUIC has independent streams, so a loss stalls only the affected stream.</li>
+  <li><strong>Faster setup.</strong> TCP handshake + TLS 1.3 = 2 round trips before data. QUIC merges the transport and TLS 1.3 handshakes into 1 RTT, and 0-RTT on resumption.</li>
+  <li><strong>Connection migration.</strong> A QUIC connection is identified by a connection ID, not the 4-tuple, so it survives a change of IP/port (Wi-Fi to mobile, NAT rebinding). A TCP connection would break.</li>
+  <li><strong>Almost everything is encrypted</strong>, including most of the transport header. That is also why tcpdump/Wireshark show only "UDP 443" without the browser's TLS keys.</li>
+</ul>
+<p>How the browser finds out: the first visit typically goes over TCP (HTTP/2). The server advertises <code>Alt-Svc: h3=":443"</code> (or an HTTPS DNS record), and Chrome then races a QUIC connection. If UDP/443 is blocked, it silently stays on TCP. So <strong>seeing no UDP :443 is a valid result</strong>, not a failure.</p>
+<p>The UDP "connection" in <code>lsof</code> (<code>UDP local->remote:443</code>, no state) is a <em>connected UDP socket</em>: the app called <code>connect()</code> on a UDP socket, which only fixes the peer address in the kernel. No packets are exchanged by that call. The connection state lives in QUIC, inside the browser.</p>
+
+<h3>Where the sockets live on macOS</h3>
+<p>Chromium browsers do networking in a separate <strong>network service</strong> process, not the main window process. On this Mac (Chrome 155) it is <code>Google Chrome Helper (Aperitif)</code> with <code>--utility-sub-type=network.mojom.NetworkService</code> (check with <code>ps -o args= -p &lt;PID&gt;</code>). Safari's sockets belong to <code>com.apple.WebKit.Networking</code>.</p>
+<div class="box"><strong>Main gotcha, verified on this Mac:</strong> <code>lsof -i -P -n | grep -iE 'chrome|safari'</code> finds <strong>0 lines</strong>. lsof on macOS truncates COMMAND to 9 characters and encodes spaces as <code>\x20</code>, so Chrome's helper appears as just <code>Google</code>, and Safari's as <code>com.apple</code>. Add <code>+c 0</code> (full command name): the same grep found 19–30 lines in my runs.</div>
+
+<div class="tw"><table>
+<tr><th>Browser</th><th>Process holding the sockets (macOS)</th><th>Linux</th><th>Windows</th></tr>
+<tr><td>Chrome</td><td><code>Google Chrome Helper</code> (seen here with suffix <code>(Aperitif)</code>) — verified</td><td><code>chrome</code></td><td><code>chrome.exe</code></td></tr>
+<tr><td>Safari</td><td><code>com.apple.WebKit.Networking</code> (shared with Mail and other WebKit apps)</td><td>n/a</td><td>n/a</td></tr>
+<tr><td>Firefox</td><td><code>firefox</code></td><td><code>firefox</code></td><td><code>firefox.exe</code></td></tr>
+<tr><td>Edge</td><td><code>Microsoft Edge Helper</code></td><td><code>msedge</code></td><td><code>msedge.exe</code></td></tr>
+<tr><td>Brave</td><td><code>Brave Browser Helper</code></td><td><code>brave</code></td><td><code>brave.exe</code></td></tr>
+<tr><td>Arc</td><td><code>Browser Helper</code> (Arc's Chromium helper)</td><td>n/a</td><td><code>Arc.exe</code></td></tr>
+</table></div>
+<p class="note">Only Chrome was running on the test Mac, so only the Chrome row is verified; the others are the standard bundle names. The pattern used by the scripts, <code>chrom|safari|webkit|firefox|brave|edge|browser|opera|vivaldi</code>, covers all of them. If a student's browser doesn't show up, run <code>lsof +c 0 -i -P -n | awk '{print $1}' | sort | uniq -c</code> to see the real names. Electron apps (VS Code, Discord, Slack, the Claude desktop app) are Chromium too and also open UDP :443; on the test Mac, <code>Claude Helper</code> had an active QUIC socket.</p>
+
+<h2 id="run">3. Running it live</h2>
+<p><strong>Before class:</strong> run <code>./run_demo.sh</code> once on the projector machine; have YouTube playing in Chrome for a few seconds before you run it.</p>
+
+<h3>macOS</h3>
+<pre><code>cd 08-browser-ports
+./run_demo.sh                 # anonymised IPs: safe on the projector
+ANON=0 LINES=25 ./run_demo.sh # real IPs, more lines
+
+# the bare commands for students:
+lsof +c 0 -i -P -n | grep -iE 'chrom|safari|webkit|firefox|brave|edge|browser' | head -20
+lsof +c 0 -i -P -n | grep -iE 'chrom|webkit|firefox|brave|edge|browser' | grep UDP | grep ':443'   # QUIC only
+lsof -a -c '/chrome|webkit|firefox|brave|edge/i' -i -P -n     # same filter via lsof itself (-a = AND)
+python3 browser_ports.py --anonymize --lines 15
+
+sysctl net.inet.ip.portrange.first net.inet.ip.portrange.last
+netstat -anv -p udp | grep '\.443 '        # UDP :443 with rxbytes/txbytes and pid columns
+nettop -m udp -L 1 -n -p &lt;PID&gt;           # per-socket bytes for one process (CSV, one sample)
+nettop -m tcp                              # interactive, live; q to quit</code></pre>
+<p class="note">Flags: <code>-i</code> internet sockets, <code>-P</code> numeric ports (<code>443</code>, not <code>https</code>), <code>-n</code> no reverse DNS (much faster), <code>+c 0</code> full process name.</p>
+
+<h3>Linux</h3>
+<pre><code>ss -tunp | grep ':443'                          # t=TCP u=UDP n=numeric p=process
+ss -unp 'dport = :443'                          # UDP :443 only = QUIC
+ss -tnp state established '( dport = :443 )'    # TCP :443 only
+cat /proc/sys/net/ipv4/ip_local_port_range
+lsof -i -P -n | grep -iE 'chrome|firefox|brave|msedge' | head    # if lsof is installed
+python3 browser_ports.py --anonymize --lines 15
+
+./linux_check.sh    # from the Mac: Linux range + lsof/ss output in Docker (needs internet for apt)</code></pre>
+<p class="note">Note: in <code>ss</code>, a connected UDP socket shows state <code>ESTAB</code>. UDP still has no connection; it means only that <code>connect()</code> fixed the peer address.</p>
+
+<h3>Windows (not tested here)</h3>
+<pre><code>:: cmd
+netstat -ano | findstr :443
+tasklist /FI "PID eq 1234"                  :: which process owns PID 1234
+netstat -ano -p udp                         :: UDP endpoints (foreign address shows *:*)
+netsh int ipv4 show dynamicport tcp         :: ephemeral range
+
+# PowerShell
+Get-NetTCPConnection -RemotePort 443 -State Established |
+  Group-Object OwningProcess |
+  Select-Object Count, @{n='Process';e={(Get-Process -Id $_.Name).ProcessName}}
+Get-NetUDPEndpoint | Where-Object { (Get-Process -Id $_.OwningProcess).ProcessName -match 'chrome|msedge|firefox|brave' }</code></pre>
+<p class="note">On Windows, UDP endpoints don't show the remote address, so QUIC can't be identified by "remote port 443" there. Use the browser views below. The TCP part works the same.</p>
+
+<h3>Seeing HTTP/3 in the browser (any OS)</h3>
+<ul>
+  <li><strong>DevTools → Network</strong>, right-click a column header → enable <strong>Protocol</strong>. Reload YouTube: <code>h3</code> = HTTP/3 over QUIC (UDP), <code>h2</code> = HTTP/2 over TCP, <code>http/1.1</code>. Works in Chrome, Edge, Brave, Arc and Firefox (Firefox shows <code>HTTP/3</code>).</li>
+  <li><strong>chrome://net-internals/#quic</strong>: list of active QUIC sessions (Chrome has removed several net-internals tabs over the years, so check it on your Chrome version beforehand). <code>chrome://net-internals/#sockets</code> shows socket pools.</li>
+  <li><strong>Live toggle:</strong> <code>chrome://flags/#enable-quic</code> → Disabled → relaunch. The UDP :443 lines disappear and TCP :443 takes over. Good optional proof that QUIC is a separate transport.</li>
+</ul>
+
+<h2 id="see">4. What students will see (real output, annotated)</h2>
+<p class="note">Captured 22.10.2026 on macOS 15, Chrome 155, with the lecturer's existing tabs (YouTube was not opened for the capture, so expect more sockets in class). Remote IPs are anonymised to 203.0.113.x; ports, process names, PIDs and counts are real. 192.168.0.155 is a private LAN address.</p>
+
+<h3>Step 1: the slide command finds nothing on macOS</h3>
+<pre><code>=== 1. lsof -i -P -n | grep -iE 'chrome|safari'  (команда без +c 0) ===
+знайдено рядків: <mark>0</mark>                         ← COMMAND truncated to "Google"
+з +c 0 (повна назва процесу): <mark>21</mark></code></pre>
+
+<h3>Step 2: the fixed command (excerpt)</h3>
+<pre><code>COMMAND                                  PID  ...  NODE NAME
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  <mark>UDP</mark> 192.168.0.155:<mark>52189</mark>->203.0.113.1:<mark>443</mark>                 ← QUIC: UDP to 443, no state
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  TCP 192.168.0.155:58173->203.0.113.2:5228 (ESTABLISHED)   ← Google push (FCM)
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  TCP 192.168.0.155:<mark>57765</mark>->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  TCP 192.168.0.155:<mark>52910</mark>->203.0.113.3:443 (ESTABLISHED)   ← same server, same :443,
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  TCP 192.168.0.155:<mark>63385</mark>->203.0.113.3:443 (ESTABLISHED)     different local ports
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  TCP 192.168.0.155:<mark>54477</mark>->203.0.113.3:443 (ESTABLISHED)
+Google\x20Chrome\x20Helper\x20(Aperitif) 745  ...  UDP *:5353                                       ← mDNS listener (Cast discovery)</code></pre>
+
+<h3>Step 3: the summary</h3>
+<pre><code>Google Chrome Helper (Aperitif)  (PID 745, Chrome/Chromium): усього 18 сокетів
+  TCP → :443  (HTTPS, HTTP/1.1 або HTTP/2): <mark>5</mark>
+  UDP → :443  (QUIC = HTTP/3):              <mark>3</mark>
+  TCP → :80   (HTTP без шифрування):        0
+  TCP → :5228 (Google push (FCM)): 1
+  UDP слухає :5353 (mDNS, пошук пристроїв у LAN): 9
+  Локальні (ефемерні) порти: 52189–63385  (9 шт.)
+...
+=== Ефемерні порти ===
+Браузер зараз використовує локальні порти 52189–63385
+Діапазон ОС (macOS sysctl net.inet.ip.portrange.first/last): <mark>49152–65535</mark>  (16384 портів)
+У діапазоні ОС: <mark>12 з 12</mark></code></pre>
+<p class="note">The second Chrome process in the recording (PID 46391) was a separate, automation-controlled Chrome instance; in class you will normally see one network-service process per browser.</p>
+
+<h3>Step 4 (optional): the QUIC socket carries the video</h3>
+<pre><code>Proto  Local                Foreign          rxbytes  txbytes  pid
+udp4   192.168.0.155.58109  203.0.113.x.443  <mark>3400838</mark>  157763   745     ← 3.4 MB in over one UDP socket
+udp4   192.168.0.155.61651  203.0.113.x.443  1469842  1141007  9126    ← Claude Helper (Electron app)</code></pre>
+
+<h3>Linux (Docker), for the range comparison</h3>
+<pre><code>=== cat /proc/sys/net/ipv4/ip_local_port_range ===
+<mark>32768	60999</mark>
+=== ss -tunp ===
+udp   ESTAB 0 0  172.17.0.5:37141  1.1.1.1:443  users:(("python3",pid=354,fd=4))
+tcp   ESTAB 0 0  172.17.0.5:46522  1.1.1.1:443  users:(("python3",pid=354,fd=3))</code></pre>
+<p class="note">Full transcripts are in <code>expected_output.txt</code>.</p>
+
+<h2 id="ask">5. Things to point out and ask</h2>
+<ul>
+  <li><strong>"Which column is the server, which is you?"</strong> Left of <code>-&gt;</code> is local (ephemeral port), right is remote (443). Same server, same 443, different local ports: that is how the kernel tells the connections apart (5-tuple).</li>
+  <li><strong>"Why does one process have 20 sockets?"</strong> Separate origins (youtube.com, googlevideo.com CDN, fonts, analytics), each with its own connection. HTTP/2 and HTTP/3 multiplex many requests over one connection per origin, so it is not one socket per request.</li>
+  <li><strong>"UDP to port 443? Isn't 443 HTTPS over TCP?"</strong> Port numbers are per protocol: 443/tcp and 443/udp are different ports. IANA assigned both to HTTPS; 443/udp is HTTP/3.</li>
+  <li><strong>"Why do UDP lines have no (ESTABLISHED)?"</strong> UDP has no connection state in the kernel. QUIC keeps its state inside the browser.</li>
+  <li><strong>"Compare your range with your neighbour's"</strong> (Mac/Windows vs Linux: 49152+ vs 32768+).</li>
+  <li><strong>"Who has zero UDP :443?"</strong> Firewall blocking UDP/443, VPN, Safari/Firefox not choosing h3 for that site. The browser quietly fell back to TCP: an example of why QUIC was designed with fallback.</li>
+  <li><strong>"What is :5353 / :5228?"</strong> mDNS (finding Chromecasts etc. on the LAN) and Google's push channel. Ports name services, not just "web".</li>
+  <li>Quick count: run it twice, 30 s apart. The ephemeral ports change as connections close and open.</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and what to do live</h2>
+<div class="tw"><table>
+<tr><th>Symptom</th><th>Cause and fix</th></tr>
+<tr><td><code>grep chrome</code> prints nothing (macOS)</td><td>COMMAND truncated to 9 chars. Use <code>lsof +c 0 ...</code> or <code>./run_demo.sh</code>.</td></tr>
+<tr><td>No UDP :443 at all</td><td>University Wi-Fi or VPN blocks UDP/443, or QUIC was not chosen yet. Play a YouTube video for 10–20 s and rerun. If still none, turn it into the fallback discussion and show section 4.</td></tr>
+<tr><td>Only a few sockets</td><td>Idle connections close after tens of seconds. Rerun right after the video starts playing.</td></tr>
+<tr><td>Real IPs and your username on the projector</td><td><code>run_demo.sh</code> anonymises remote IPs by default; the USER column still shows your login. For a raw command, pipe through <code>python3 browser_ports.py --anonymize --lines 20</code> instead.</td></tr>
+<tr><td>Safari shows nothing</td><td>Its sockets belong to <code>com.apple.WebKit.Networking</code>; include <code>webkit</code> in the pattern (the scripts do).</td></tr>
+<tr><td><code>lsof</code> is slow</td><td>Always use <code>-n -P</code>. Or narrow: <code>lsof -a -c '/chrome/i' -i -P -n</code>.</td></tr>
+<tr><td>Linux: <code>lsof: command not found</code></td><td>Use <code>ss -tunp</code> (iproute2 is installed by default) or <code>sudo apt install lsof</code>.</td></tr>
+<tr><td>Students on Windows see QUIC nowhere in netstat</td><td>Expected: UDP endpoints have no remote address there. Use DevTools Protocol column (<code>h3</code>).</td></tr>
+<tr><td><code>linux_check.sh</code> fails</td><td>Needs Docker and internet (pulls <code>python:3.12-slim</code>, installs lsof/iproute2). Skip it; the Linux range is in <code>expected_output.txt</code>.</td></tr>
+</table></div>
+
+<h2 id="fallback">7. 1-minute fallback</h2>
+<div class="box ok">
+<p>If the network or laptop misbehaves: open <code>expected_output.txt</code> and walk through it.</p>
+<ol>
+  <li>Section A, step 1: the plain grep finds 0 lines; with <code>+c 0</code>, 21 (10 s).</li>
+  <li>Step 2: point at one <code>UDP ...->:443</code> line (QUIC) and the four TCP lines to the same server with different local ports (20 s).</li>
+  <li>Step 3 summary: 5 TCP :443, 3 UDP :443, all local ports inside 49152–65535 (15 s).</li>
+  <li>Section B: 3.4 MB received over one UDP :443 socket. That is video over HTTP/3 (10 s).</li>
+  <li>Section C: Linux range 32768–60999 for comparison (5 s).</li>
+</ol>
+<p class="note">Remote IPs in the file are documentation addresses (RFC 5737), not real servers. Say so if a student tries to look them up.</p>
+</div>
+</main>
+</body>
+</html>

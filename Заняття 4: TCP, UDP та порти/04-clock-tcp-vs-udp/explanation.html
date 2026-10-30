@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock: TCP vs UDP</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1f23; --muted: #5d6470; --card: #ffffff; --border: #e2e0da;
+  --code-bg: #f3f1ec; --accent: #2457c5; --udp: #8a5a00; --tcp: #b4232a; --ok: #2d7a3e;
+  --note-bg: #eef3fd; --warn-bg: #fdf3e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171b; --fg: #e6e6e3; --muted: #9aa1ac; --card: #1d2025; --border: #33373e;
+    --code-bg: #0f1114; --accent: #7aa5ff; --udp: #e2b155; --tcp: #ff7a7f; --ok: #6fcf86;
+    --note-bg: #1b2433; --warn-bg: #2d2416;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171b; --fg: #e6e6e3; --muted: #9aa1ac; --card: #1d2025; --border: #33373e;
+  --code-bg: #0f1114; --accent: #7aa5ff; --udp: #e2b155; --tcp: #ff7a7f; --ok: #6fcf86;
+  --note-bg: #1b2433; --warn-bg: #2d2416;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.3rem; margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+p, li { max-width: 72ch; }
+.lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 16px; }
+a { color: var(--accent); }
+code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg);
+  padding: 1px 5px; border-radius: 4px; }
+pre { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 12px 0; }
+pre code { background: none; padding: 0; font-size: inherit; }
+.u { color: var(--udp); } .t { color: var(--tcp); font-weight: 600; } .ok { color: var(--ok); }
+.m { color: var(--muted); }
+.callout { background: var(--note-bg); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+.warn { background: var(--warn-bg); border-left-color: var(--udp); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 16px 0; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.card h3 { margin-top: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.95rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+ol.notes li { margin-bottom: 6px; }
+.toc { columns: 2; column-gap: 24px; padding-left: 20px; }
+@media (max-width: 560px) { .toc { columns: 1; } h1 { font-size: 1.5rem; } pre { font-size: 11.5px; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Ticking clock over TCP vs UDP under 10% loss</h1>
+<p class="lede">Lecturer notes for demo 04, Topic 4 (TCP, UDP and ports). Folder <code>04-clock-tcp-vs-udp/</code>, ports 9104/UDP and 9114/TCP. Every number below comes from real runs on 22.10.2026 (macOS 15 host, Docker Desktop, Linux 6.12.76-linuxkit); the full logs are in <code>expected_output.txt</code>.</p>
+
+<ol class="toc">
+  <li><a href="#what">What it shows</a></li>
+  <li><a href="#mechanism">Mechanism</a></li>
+  <li><a href="#run">Running it live</a></li>
+  <li><a href="#see">What students will see</a></li>
+  <li><a href="#ask">Points and questions</a></li>
+  <li><a href="#gotchas">Gotchas</a></li>
+  <li><a href="#fallback">1-minute fallback</a></li>
+</ol>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>One sender ticks a clock every 100 ms: each tick is <code>"&lt;seq&gt; &lt;unix time&gt;\n"</code>, sent both as a UDP datagram to port 9104 and over a TCP connection to port 9114. Linux <code>netem</code> drops 10% of packets and delays each by 50 ms. The receiver prints the two streams side by side, one screen row per 100 ms of wall time:</p>
+<ul>
+  <li><span class="u">UDP (left)</span> keeps ticking steadily at about 51 ms lag. Lost ticks show up as <code>··· пропущено N тіків ···</code>, and the clock never stops.</li>
+  <li><span class="t">TCP (right)</span> loses nothing, but whenever one segment is lost the column goes silent (<code>‖ ЗАМЕРЗЛО на 300 мс</code>). Then 3 to 10 ticks land in the same millisecond (<code>← пачка</code>) with lag bars of 250 to 850 ms. That is head-of-line blocking, visible on screen.</li>
+</ul>
+<p><b>Supports:</b> the slide «Застарілі дані гірші за втрачені», exercise 5, and the TCP vs UDP comparison slide. For a clock, a game position or a voice frame, a tick that arrives 600 ms late is worse than one that never arrives, because it also holds back every newer tick behind it.</p>
+
+<h2 id="mechanism">2. The mechanism: what happens inside TCP and the kernel</h2>
+<h3>UDP: every datagram stands alone</h3>
+<p>Each <code>sendto()</code> becomes one datagram. If netem drops it, nothing in the kernel notices or retries. The next datagram is delivered to <code>recvfrom()</code> as soon as it arrives. The application sees the loss only because our payload has a sequence number (UDP has none), which is how the receiver prints <code>пропущено</code>.</p>
+
+<h3>TCP: an ordered byte stream</h3>
+<ol>
+  <li><b>Stream, not messages.</b> TCP delivers bytes, not ticks, so the receiver needs framing. We end each tick with <code>\n</code> and split on it. <code>TCP_NODELAY</code> turns off Nagle so each 21-byte tick leaves as its own segment instead of waiting to be coalesced.</li>
+  <li><b>In-order delivery.</b> When segment N is lost but N+1, N+2 arrive, the receiving kernel keeps them in its out-of-order queue. <code>recv()</code> may only return bytes up to the first hole, so the application is blocked even though newer data is already sitting in kernel memory. In our <code>ss -tni</code> snapshot the receiver had <code>rcv_ooopack:12</code>, meaning 12 segments had been parked out of order 7 s into an 8-second run.</li>
+  <li><b>Loss detection.</b> Each later segment triggers a duplicate ACK carrying a SACK block (verified in the capture: <code>sack 1 {61:101}</code>). Linux's RACK/SACK logic then decides the hole is a loss and retransmits. When that fails (the retransmission is lost too, or no later data exists to trigger SACKs, as at the end of the stream), recovery falls back to timers: tail-loss probe and finally the RTO. The RTO has a 200 ms floor on Linux (<code>TCP_RTO_MIN</code>) and doubles on each retry.</li>
+  <li><b>The burst.</b> When the retransmission fills the hole, the kernel hands the whole contiguous range to the next <code>recv()</code> at once. That is why several ticks print with identical receive times and lags decreasing in 100 ms steps (352, 252, 152, 52 ms).</li>
+</ol>
+
+<h3>Why the stalls are about 300 ms (worked timeline from the capture)</h3>
+<div class="tablewrap"><table>
+<tr><th>t (ms)</th><th>Event</th></tr>
+<tr><td>0</td><td>Tick N sent, dropped by netem</td></tr>
+<tr><td>100</td><td>Tick N+1 sent; arrives at 150; receiver sends a dup ACK with SACK</td></tr>
+<tr><td>200</td><td>Dup ACK reaches the sender (another 50 ms); RACK marks N lost and retransmits at once</td></tr>
+<tr><td>250</td><td>Retransmission arrives; ticks N and N+1 are released together. Lag of N = 250 ms</td></tr>
+</table></div>
+<p>Stuck lag ≈ tick interval + RTT + one-way delay = 100 + 100 + 50 = 250 ms, which matches the many <code>#… 25x мс</code> lines. The receiver had seen nothing since t = −50, so the visible stall is about 300 ms. If the first dup ACK is also lost (10% loss applies to ACKs too), the sender waits for the next one: 350 ms lag and a 400 ms stall, which the tcpdump excerpt shows. A lost retransmission pushes TCP onto the RTO with backoff, giving the 600–900 ms stalls and, at the very end of one run, 2030 ms.</p>
+
+<div class="callout"><b>Why add 50 ms delay?</b> netem on <code>lo</code> touches each packet once, so 50 ms means one-way 50 ms and RTT about 100 ms (<code>ss</code>: <code>rtt:102</code>). Without delay (a <code>DELAY=0ms</code> run), RTT is about 0 and the sender retransmits as soon as the next tick's SACK arrives. Stalls were then 200–225 ms, often just one tick, and the lag baseline was 0 ms, so a stall looked like a blip (5 stalls in 10 s, max 441 ms). With 50 ms delay the stall comes out at 300 ms or more, the "normal" lag is a clear 51 ms baseline to compare against, and it looks like a real WAN path.<br><br>
+<b>Correction to the common "min RTO 200 ms" explanation:</b> in these runs most stalls were <em>not</em> RTO timeouts. They were SACK/RACK fast recovery, which is clocked by the next tick. RTO shows up only for the longer stalls. Both mechanisms are worth naming.</div>
+
+<h2 id="run">3. Running it live</h2>
+<h3>Before class (once, needs internet)</h3>
+<pre><code>cd 04-clock-tcp-vs-udp
+./run_demo.sh --duration 3     # builds the demo04-clock image (python:3.12-slim + iproute2, tcpdump)</code></pre>
+
+<h3>Option A: one command (macOS or Linux with Docker)</h3>
+<pre><code>./run_demo.sh                       # 15 s, delay 50ms, loss 10%, two columns
+./run_demo.sh --duration 30         # longer
+LOSS=20% ./run_demo.sh              # more drama if the run is too calm
+DELAY=0ms ./run_demo.sh             # show why the delay matters
+NO_DOCKER=1 ./run_demo.sh           # macOS, no netem: control experiment, both columns identical</code></pre>
+<p>It starts container <code>demo04-clock-run</code> with <code>--cap-add NET_ADMIN</code>, runs <code>tc qdisc add dev lo root netem delay 50ms loss 10%</code> and then <code>clock.py</code>. The container is removed on exit. Terminal width needs to be at least 84 columns. Colours appear only when stdout is a real terminal.</p>
+
+<h3>Option B: separate terminals (more visual: TCP and UDP receivers in different windows)</h3>
+<pre><code>./run_demo.sh shell      # background container demo04-clock with netem already on lo
+# Terminal 1
+docker exec -it demo04-clock python3 clock.py recv --proto udp
+# Terminal 2
+docker exec -it demo04-clock python3 clock.py recv --proto tcp
+# Terminal 3: both senders at once
+docker exec -it demo04-clock sh -c 'python3 clock.py send --proto udp &amp; python3 clock.py send --proto tcp; wait'
+# optional: watch retransmissions
+docker exec -it demo04-clock tcpdump -i lo -n -tttt 'tcp port 9114'
+docker exec -it demo04-clock ss -tni '( sport = :9114 or dport = :9114 )'
+./run_demo.sh stop       # when done</code></pre>
+<p>The TCP receiver exits by itself when the sender closes. Stop the UDP receiver with Ctrl+C, which prints its summary.</p>
+
+<h3>Inspecting sockets: macOS vs Linux</h3>
+<div class="grid">
+<div class="card"><h3>macOS (host, no loss)</h3>
+<code>lsof -nP -iTCP:9114 -iUDP:9104</code><br>
+<code>netstat -an -p tcp | grep 9114</code><br>
+<code>netstat -an -p udp | grep 9104</code><br>
+<code>nettop -m tcp</code> (live per-socket view)<br>
+<span class="m">macOS has no netem and no <code>ss</code>. Loss could in principle be emulated with <code>dnctl</code>/<code>pfctl</code> dummynet, but that needs sudo and was not tested for this demo.</span></div>
+<div class="card"><h3>Linux / Docker (with loss)</h3>
+<code>tc qdisc show dev lo</code><br>
+<code>ss -tni '( sport = :9114 )'</code> shows rtt, rto, retrans, rcv_ooopack<br>
+<code>ss -unap | grep 9104</code><br>
+<code>tcpdump -i lo -n 'tcp port 9114'</code><br>
+<span class="m">On a bare Linux host you could run <code>sudo tc qdisc add dev lo root netem …</code> directly, but that slows <em>all</em> loopback traffic on the machine. Use the container.</span></div>
+</div>
+
+<h2 id="see">4. What students will see (real output, annotated)</h2>
+<h3>A typical stall (Docker, delay 50 ms, loss 10%)</h3>
+<pre><code>UDP :9104                                │ TCP :9114
+  №    надісл.  отрим.   лаг             │   №    надісл.  отрим.   лаг
+─────────────────────────────────────────┼─────────────────────────────────────────
+#000  44.022  44.075    53мс ■           │ #000  44.023  44.075    52мс ■
+#001  44.123  44.174    51мс ■           │                                         <span class="m">(1)</span>
+<span class="u">   ··· пропущено 1 тік ···</span>               │ <span class="t">   ‖ ЗАМЕРЗЛО на 299 мс</span>                   <span class="m">(2)</span>
+#003  44.324  44.375    51мс ■           │ <span class="t">#001  44.123  44.375   252мс ■■■■■</span>        <span class="m">(3)</span>
+                                         │ <span class="t">#002  44.223  44.375   152мс ■■■  ← пачка</span>
+                                         │ <span class="t">#003  44.323  44.375    52мс ■  ← пачка</span>   <span class="m">(4)</span>
+#004  44.423  44.474    51мс ■           │ #004  44.423  44.476    53мс ■</code></pre>
+<ol class="notes">
+  <li>TCP tick #001 was lost. UDP's #001 got through: netem drops packets independently, so the two columns lose different ticks.</li>
+  <li>UDP lost #002, says so, and carries on with #003 on time. TCP shows nothing for about 300 ms, although #002 and #003 are already in the receiver's kernel.</li>
+  <li>The retransmitted #001 arrives 252 ms after it was sent (100 + 100 + 50 ms, see the timeline).</li>
+  <li>#001 to #003 share one receive time. The lags step down by 100 ms. TCP has caught up, but each of those values was stale when it reached the app.</li>
+</ol>
+
+<h3>A long stall: lost retransmission, RTO</h3>
+<pre><code>#078  51.823  51.874    51мс ■           │
+#079  51.923  51.974    50мс ■           │ <span class="t">   ‖ ЗАМЕРЗЛО на 906 мс</span>
+                                         │ <span class="t">#071  51.123  51.980   857мс ■■■■■■■■»</span>
+                                         │ <span class="t">#072  51.223  51.980   756мс ■■■■■■■■»  ← пачка</span>
+                                         │ <span class="t">#073  51.323  51.980   657мс ■■■■■■■■»  ← пачка</span>
+                                         │ <span class="t">#074  51.423  51.980   557мс ■■■■■■■■»  ← пачка</span>
+#080  52.022  52.074    51мс ■           │ <span class="t">#075  51.523  52.082   559мс ■■■■■■■■»</span>
+                                         │ <span class="t">#076  51.623  52.082   459мс ■■■■■■■■»  ← пачка</span>
+                                         │   … #077 – #080 ← пачка
+#081  52.123  52.174    51мс ■           │ #081  52.123  52.174    51мс ■</code></pre>
+<p>For nearly a second the UDP clock moved from #071 to #079 (dropping two ticks along the way) while the TCP clock was stuck on #070. The most likely cause, inferred from timing rather than captured in this run, is that the retransmission or its ACKs were lost as well, so recovery fell back to the timer.</p>
+
+<h3>The summary at the end (same run)</h3>
+<pre><code>Підсумок (150 тіків по 100 мс):
+<span class="u">UDP: отримано 132 з 150, втрачено 18 (12%)
+     лаг: медіана 51 мс, макс 69 мс
+     найдовша дірка: 3 тіки; годинник НЕ зупинявся</span>
+<span class="t">TCP: отримано 150 з 150, втрачено 0 (TCP перепосилає)
+     лаг: медіана 51 мс, макс 857 мс
+     зупинок (замерзань): 14, найдовша 906 мс; пачок: 16</span></code></pre>
+<p>The medians are identical (51 ms). The difference is entirely in the tail: UDP's worst lag was 69 ms, TCP's was 857 ms. Other runs: 16 lost / 19 stalls / max lag 2416 ms (with a 2030 ms tail-loss stall at the very end); with <code>DELAY=0ms</code>, 10 lost / 5 stalls / max lag 341 ms. Each run differs because loss is random.</p>
+
+<h3>Under the hood (tcpdump on lo inside the container)</h3>
+<pre><code>02.551995 IP 9114 &gt; 45034: Flags [.], ack 537                <span class="m">← ACK for tick #025</span>
+02.700915 IP 45034 &gt; 9114: Flags [P.], seq 558:579, length 21  <span class="m">← #027; #026 (537:558) was dropped, never shown</span>
+02.801022 IP 45034 &gt; 9114: Flags [P.], seq 579:600, length 21  <span class="m">← #028</span>
+02.851100 IP 9114 &gt; 45034: Flags [.], ack 537                <span class="m">← dup ACK: "still waiting for byte 537"</span>
+02.901085 IP 45034 &gt; 9114: Flags [P.], seq 600:621, length 21  <span class="m">← #029</span>
+<span class="t">02.902058 IP 45034 &gt; 9114: Flags [P.], seq 537:558, length 21  ← retransmission of #026</span>
+02.952938 IP 9114 &gt; 45034: Flags [.], ack 621                <span class="m">← hole filled: everything up to #029 at once</span></code></pre>
+<p class="m">tcpdump on <code>lo</code> sees packets after netem, so the dropped original never appears. The dup ACK for #027 (around 02.75) is also missing because it was dropped too, which is why this stall lasted 401 ms instead of 300 ms.</p>
+
+<h2 id="ask">5. Things to point out or ask</h2>
+<ul>
+  <li><b>Ask before running:</b> "With 10% loss, which clock will look better?" Many students expect TCP to win because it is reliable.</li>
+  <li><b>Point at the right column during a stall:</b> the data is already in the receiver's kernel. Who is holding it back, and why? (In-order delivery: <code>recv()</code> cannot skip a hole.)</li>
+  <li><b>Look at the burst lags (352, 252, 152, 52):</b> TCP did deliver everything, but what is a 352 ms-old clock reading worth? That is the slide «Застарілі дані гірші за втрачені».</li>
+  <li><b>Medians are equal and maxima are not.</b> Reliability costs latency in the tail, not on average.</li>
+  <li>Why did the code need <code>\n</code> framing and <code>TCP_NODELAY</code> for TCP but not for UDP? (Byte stream vs datagrams; Nagle.)</li>
+  <li>Why didn't lowering the RTT (DELAY=0) remove the stalls? (Loss detection still needs the next tick to arrive, or a timer with a 200 ms floor.)</li>
+  <li>Bridge to real protocols: VoIP/RTP, games and DNS use UDP. QUIC (HTTP/3) runs over UDP partly to avoid exactly this cross-stream head-of-line blocking. WebRTC data channels can be configured unordered and unreliable.</li>
+  <li>Exercise 5 tie-in: have students pick TCP or UDP for a live score ticker, a file download and a video call, and justify each using this output.</li>
+</ul>
+
+<h2 id="gotchas">6. Gotchas and live recovery</h2>
+<div class="callout warn">
+<ul>
+  <li><b>Docker Desktop not running</b> causes <code>Cannot connect to the Docker daemon</code>. Start Docker Desktop and wait for it to come up, or switch to the fallback.</li>
+  <li><b>First run needs internet</b> for <code>apt-get</code> in the image build. Build before class; after that the image is cached.</li>
+  <li><b>A calm run.</b> 10% loss is random, and a 15 s run sometimes has only a couple of short stalls. Re-run, use <code>--duration 30</code>, or <code>LOSS=20%</code>.</li>
+  <li><b>A long stall at the end</b> (up to 2 s) is normal tail loss: no later ticks exist to trigger SACK, so only the RTO with backoff can recover. The script waits up to 5 s for TCP after the senders finish.</li>
+  <li><b>Startup.</b> If the SYN is lost, the TCP connect retries after 1 s (initial RTO) and TCP starts behind with a burst. This is genuine but can confuse students; mention it or re-run.</li>
+  <li><b>Narrow terminal</b> (under 84 columns) wraps the columns. Widen it or reduce the font size. If <code>■ ‖ ←</code> render as boxes, switch to a font with box-drawing glyphs (Menlo and SF Mono both work).</li>
+  <li><b>"Container name already in use"</b>: run <code>./run_demo.sh stop</code> and <code>docker rm -f demo04-clock-run</code>.</li>
+  <li><b>Port busy on macOS</b> (NO_DOCKER mode): <code>lsof -nP -iTCP:9114 -iUDP:9104</code>, then kill the leftover process.</li>
+  <li><b>Plain macOS without Docker shows nothing interesting:</b> loopback loses nothing, so both columns are identical at 0–1 ms. That is a useful control experiment, not a failure.</li>
+  <li>The netem rule lives only inside the container's network namespace. It never affects the laptop's own networking.</li>
+</ul>
+</div>
+
+<h2 id="fallback">7. One-minute fallback</h2>
+<pre><code>less -S expected_output.txt      # or open it in any editor</code></pre>
+<p>Section 1 is a complete 15 s run: scroll to the first <code>ЗАМЕРЗЛО</code> (line 12), then the 906 ms stall (line 110), then the summary at the end of the section. Sections 2–6 cover the DELAY=0ms run, the macOS control run, the tcpdump excerpt, <code>ss -tni</code>, and <code>lsof</code>/<code>netstat</code> on macOS. Script: "UDP skipped 18 ticks but never stopped; TCP delivered all 150, but 14 times it froze and then dumped stale ticks, up to 857 ms old."</p>
+</main>
+</body>
+</html>

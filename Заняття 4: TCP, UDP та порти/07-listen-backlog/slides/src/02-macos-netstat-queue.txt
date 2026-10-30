@@ -1,0 +1,27 @@
+macOS — AUTO=1 ./run_demo.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається
+16
+{c:$ AUTO=1 ./run_demo.sh}
+[00:01:11.0] Сервер слухає 127.0.0.1:9107, {k:listen(backlog=2)}, PID 51399
+{m:…}
+[00:01:13.4] Звіт:
+  клієнт #1 (порт 59141): connect() {g:завершився} за 0.00 с
+  клієнт #2 (порт 59142): connect() {g:завершився} за 0.00 с
+  клієнт #3 (порт 59143): connect() {r:ЩЕ ЧЕКАЄ} (SYN без відповіді?)
+  клієнт #4 (порт 59144): connect() {r:ЩЕ ЧЕКАЄ} (SYN без відповіді?)
+  клієнт #5 (порт 59145): connect() {r:ЩЕ ЧЕКАЄ} (SYN без відповіді?)
+Разом: connect() завершився у {g:2}, чекають {r:3}
+{m:…}
+{c:$ netstat -Lan -p tcp}      {m:# qlen/incqlen/maxqlen}
+Current listen queue sizes (qlen/incqlen/maxqlen)
+Listen         Local Address
+{k:2/0/2}          127.0.0.1.9107      {a:← 2 чекають accept(), 0 напіввідкритих, ліміт 2}
+{c:$ netstat -an -p tcp | grep 9107}      {m:# без TIME_WAIT від попередніх запусків}
+Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)
+tcp4       0      0  127.0.0.1.59145        127.0.0.1.9107         {r:SYN_SENT}
+tcp4       0      0  127.0.0.1.59144        127.0.0.1.9107         {r:SYN_SENT}     {a:← не вмістились}
+tcp4       0      0  127.0.0.1.59143        127.0.0.1.9107         {r:SYN_SENT}
+tcp4      {k:16}      0  127.0.0.1.9107         127.0.0.1.59142        {g:ESTABLISHED}  {a:← 16 байтів до accept()}
+tcp4       0      0  127.0.0.1.59142        127.0.0.1.9107         {g:ESTABLISHED}
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59141        {g:ESTABLISHED}
+tcp4       0      0  127.0.0.1.59141        127.0.0.1.9107         {g:ESTABLISHED}
+tcp4       0      0  127.0.0.1.9107         *.*                    LISTEN       {a:← 0 0: черги тут не видно}

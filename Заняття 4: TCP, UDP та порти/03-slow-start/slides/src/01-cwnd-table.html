@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">./run_demo.sh — Docker, netem delay 100ms, ss -tin кожні 20 мс</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+=== Налаштування мережі в контейнері (Linux 6.12.76-linuxkit) ===
+lo: mtu 1500, qdisc netem 804b: root refcnt 2 limit 10000 <span class="cy">delay 100ms</span>
+алгоритм керування перевантаженням: cubic, tcp_rmem: 4096 4194304 6291456
+<span class="mu">…</span>
+MSS = 1448 байтів; cwnd рахується в сегментах (1 сегмент = MSS)
+<span class="hd">  t, мс</span>   <span class="hd">cwnd</span>  <span class="hd">ріст</span> <span class="hd">ssthresh</span> <span class="hd">rtt, мс</span>  <span class="hd">bytes_acked</span> <span class="hd">unacked</span>  <span class="hd">retrans</span>  <span class="hd">фаза</span>
+      0     <span class="cw">10</span>              —   <span class="cy">202.5</span>            0       0      0/0  slow start  <span class="an">← старт: 10 сегментів</span>
+    215     <span class="cw">20</span> <span class="x2">×2.00</span>        —   <span class="cy">202.0</span>        14480      20      0/0  slow start
+    428     <span class="cw">40</span> <span class="x2">×2.00</span>        —   <span class="cy">202.0</span>        43440      40      0/0  slow start
+    617     <span class="cw">80</span> <span class="x2">×2.00</span>        —   <span class="cy">201.8</span>       101360      80      0/0  slow start
+    831    <span class="cw">160</span> <span class="x2">×2.00</span>        —   <span class="cy">202.3</span>       216880     160      0/0  slow start
+   1013    <span class="cw">320</span> <span class="x2">×2.00</span>        —   <span class="cy">201.9</span>       448560     320      0/0  slow start
+   1216    <span class="cw">640</span> <span class="x2">×2.00</span>        —   <span class="cy">202.0</span>       911920     640      0/0  slow start
+   1433   <span class="cw">1280</span> <span class="x2">×2.00</span>        —   <span class="cy">202.1</span>      1838640     903      0/0  slow start  <span class="an">← unacked 903: файл скінчився</span>
+З'єднання закрито, семплер завершує роботу
+<span class="mu">…</span>
+Отримано 3.0 МБ за 1.62 с, середня швидкість 15.5 Мбіт/с
+<span class="an"># кожен рядок ≈ один RTT (~200 мс): cwnd ×2</span>
+<span class="an"># ssthresh «—» = ще не задано, retrans 0/0 = втрат немає</span></pre>
+</div></body></html>

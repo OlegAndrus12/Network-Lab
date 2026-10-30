@@ -1,0 +1,30 @@
+Linux (Docker) — AUTO=1 ./run_docker.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається
+16
+{c:$ AUTO=1 ./run_docker.sh}
+[21:01:32.6] Сервер слухає 127.0.0.1:9107, {k:listen(backlog=2)}, PID 17
+{m:…}
+[21:01:34.9] Звіт:
+  клієнт #1 (порт 53436): connect() {g:завершився} за 0.00 с
+  клієнт #2 (порт 53440): connect() {g:завершився} за 0.00 с
+  клієнт #3 (порт 53442): connect() {g:завершився} за 0.00 с     {a:← 3 = backlog + 1}
+  клієнт #4 (порт 53446): connect() {r:ЩЕ ЧЕКАЄ} (SYN без відповіді?)
+  клієнт #5 (порт 53452): connect() {r:ЩЕ ЧЕКАЄ} (SYN без відповіді?)
+{m:…}
+{c:$ ss -ltn 'sport = :9107'}      {m:# LISTEN: Recv-Q = черга accept, Send-Q = backlog}
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN {k:3}      {k:2}          127.0.0.1:9107      0.0.0.0:*    {a:← Recv-Q = черга, Send-Q = backlog}
+{c:$ ss -tan '( sport = :9107 or dport = :9107 )'}      {m:# без TIME-WAIT}
+State    Recv-Q Send-Q Local Address:Port  Peer Address:Port
+LISTEN   3      2          127.0.0.1:9107       0.0.0.0:*
+{g:ESTAB}    {k:16}     0          127.0.0.1:9107     127.0.0.1:53442  {a:← сервер: 16 байтів ніхто не прочитав}
+{g:ESTAB}    0      0          127.0.0.1:53442    127.0.0.1:9107   {a:← клієнт: «підключений»}
+{r:SYN-SENT} 0      1          127.0.0.1:53452    127.0.0.1:9107   {a:← не вмістився}
+{g:ESTAB}    16     0          127.0.0.1:9107     127.0.0.1:53436
+{r:SYN-SENT} 0      1          127.0.0.1:53446    127.0.0.1:9107   {a:← не вмістився}
+{g:ESTAB}    0      0          127.0.0.1:53440    127.0.0.1:9107
+{g:ESTAB}    16     0          127.0.0.1:9107     127.0.0.1:53440
+{g:ESTAB}    0      0          127.0.0.1:53436    127.0.0.1:9107
+{c:$ nstat -az TcpExtListenOverflows TcpExtListenDrops TcpExtSyncookiesSent TcpExtSyncookiesRecv}
+{m:…}
+TcpExtListenOverflows           {r:4}                  0.0    {a:← SYN відкинуто мовчки}
+TcpExtListenDrops               {r:4}                  0.0

@@ -1,0 +1,48 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>./run_demo.sh — netem: delay 50ms loss 10%</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.45 Menlo,"SF Mono",monospace;display:inline-block;min-width:100%}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9a9a9a;font-size:14px}
+.d{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:14px}
+pre{margin:0;padding:20px 24px 24px;font:inherit;white-space:pre}
+.p{color:#6a9955}.cmd{color:#ffffff;font-weight:bold}
+.udp{color:#e2b155}.tcp{color:#4fc1ff}
+.freeze{color:#ff6b6b;font-weight:bold}.burst{color:#ff6b6b}
+.skip{color:#e2b155;font-weight:bold}
+.ok{color:#89d185}.hl{color:#ffffff;font-weight:bold}
+.note{color:#8a8f98;font-style:italic}.cut{color:#6b6b6b}
+.lost{color:#ff6b6b;font-weight:bold}.retx{color:#ff6b6b;font-weight:bold}.dup{color:#e2b155;font-weight:bold}
+ body{width:920px}</style></head><body><div class="win">
+<div class="bar"><span class="d" style="background:#ff5f57"></span><span class="d" style="background:#febc2e"></span><span class="d" style="background:#28c840"></span><span class="t">./run_demo.sh — netem: delay 50ms loss 10%</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+=== Docker (Linux), netem на lo: delay 50ms loss 10% ===
+<span class="udp">UDP :9104</span>                                │ <span class="tcp">TCP :9114</span>
+  №    надісл.  отрим.   лаг             │   №    надісл.  отрим.   лаг
+─────────────────────────────────────────┼─────────────────────────────────────────
+#000  44.022  44.075    53мс ■           │ #000  44.023  44.075    52мс ■
+#001  44.123  44.174    51мс ■           │
+   <span class="skip">··· пропущено 1 тік ···</span>               │    <span class="freeze">‖ ЗАМЕРЗЛО на 299 мс</span>  <span class="note">← TCP мовчить</span>
+#003  44.324  44.375    51мс ■           │ #001  44.123  44.375   252мс ■■■■■
+                                         │ #002  44.223  44.375   152мс ■■■  <span class="burst">← пачка</span>
+                                         │ #003  44.323  44.375    52мс ■  <span class="burst">← пачка</span>
+#004  44.423  44.474    51мс ■           │ #004  44.423  44.476    53мс ■
+<span class="cut">…</span>
+   <span class="skip">··· пропущено 1 тік ···</span>               │
+#075  51.523  51.574    51мс ■           │
+#076  51.622  51.674    51мс ■           │
+   <span class="skip">··· пропущено 1 тік ···</span>               │
+#078  51.823  51.874    51мс ■           │
+#079  51.923  51.974    50мс ■           │    <span class="freeze">‖ ЗАМЕРЗЛО на 906 мс</span>  <span class="note">← UDP іде далі</span>
+                                         │ #071  51.123  51.980   857мс ■■■■■■■■»
+                                         │ #072  51.223  51.980   756мс ■■■■■■■■»  <span class="burst">← пачка</span>
+                                         │ #073  51.323  51.980   657мс ■■■■■■■■»  <span class="burst">← пачка</span>
+                                         │ #074  51.423  51.980   557мс ■■■■■■■■»  <span class="burst">← пачка</span>
+#080  52.022  52.074    51мс ■           │ #075  51.523  52.082   559мс ■■■■■■■■»
+                                         │ #076  51.623  52.082   459мс ■■■■■■■■»  <span class="burst">← пачка</span>
+                                         │ #077  51.723  52.082   359мс ■■■■■■■  <span class="burst">← пачка</span>
+                                         │ #078  51.823  52.082   259мс ■■■■■  <span class="burst">← пачка</span>
+                                         │ #079  51.923  52.082   159мс ■■■  <span class="burst">← пачка</span>
+                                         │ #080  52.023  52.082    59мс ■  <span class="burst">← пачка</span>
+#081  52.123  52.174    51мс ■           │ #081  52.123  52.174    51мс ■
+<span class="cut">…</span></pre></div></body></html>

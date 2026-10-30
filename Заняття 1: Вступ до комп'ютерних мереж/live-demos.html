@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Живі демо: Тема 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #F2F4F6; --surface: #FFFFFF; --soft: #E8EDF1; --ink: #15202A; --muted: #56636F;
+  --line: #D3DAE0; --accent: #B25E24; --accent-soft: #F6E6DA; --accent-ink: #FFFFFF;
+  --teal: #00796B; --teal-soft: #DDF0EC; --ok: #1E8449;
+  --term-bg: #121A21; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+    --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+    --teal: #3FC1AE; --teal-soft: #11302B; --ok: #3FBF72;
+    --term-bg: #0A0F13; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0D1217; --surface: #151C23; --soft: #1C252E; --ink: #E7ECF1; --muted: #97A4B0;
+  --line: #2A3540; --accent: #E38C4E; --accent-soft: #3A2616; --accent-ink: #1A0F07;
+  --teal: #3FC1AE; --teal-soft: #11302B; --ok: #3FBF72;
+  --term-bg: #0A0F13; --term-ink: #D8E1E8; --term-dim: #7F8D99; --term-prompt: #E38C4E;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+[hidden] { display: none !important; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; line-height: 1.2; text-wrap: balance; }
+h1 { font-size: clamp(26px, 4.6vw, 40px); }
+h2 { font-size: clamp(19px, 2.6vw, 24px); }
+h3 { font-size: 15px; font-weight: 500; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+
+.page { max-width: 1160px; margin: 0 auto; display: grid; gap: 24px; }
+header.hero { padding-block: 36px 4px; display: grid; gap: 12px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border-radius: 10px; }
+.seg button { font: 500 14px/1 var(--body); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 10px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.btn { font: 600 13px/1 var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+nav.side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 4px; }
+@media (max-width: 860px) { nav.side { position: static; grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; padding-bottom: 6px; } }
+nav.side a { display: grid; gap: 2px; text-decoration: none; color: var(--ink); padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; }
+nav.side a:hover { background: var(--surface); border-color: var(--line); }
+nav.side a small { font: 500 11px/1.3 var(--mono); color: var(--muted); }
+nav.side a .t { font-size: 14px; font-weight: 600; }
+nav.side a.done .t::after { content: " ✓"; color: var(--ok); }
+
+main { display: grid; gap: 24px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(18px, 3vw, 28px); display: grid; gap: 18px; scroll-margin-top: 16px; min-width: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { font: 500 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+.tag.slide { background: var(--accent-soft); color: var(--accent); }
+.why { font-size: 15px; }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+ol.steps > li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 500 13px/1 var(--mono); border: 1px solid var(--line); color: var(--muted); background: var(--surface); cursor: pointer; padding: 0; }
+li.checked .num { background: var(--ok); border-color: var(--ok); color: #fff; }
+li.checked .body > p { color: var(--muted); }
+.body { display: grid; gap: 10px; min-width: 0; }
+
+.cmd { display: flex; align-items: stretch; background: var(--term-bg); border-radius: 10px; overflow: hidden; }
+.cmd code { flex: 1; min-width: 0; font: 400 14px/1.5 var(--mono); color: var(--term-ink); padding: 12px 14px; overflow-x: auto; white-space: pre; }
+.cmd code::before { content: "$ "; color: var(--term-prompt); }
+.cmd.win code::before { content: "> "; }
+.cmd button { font: 600 12px/1 var(--body); background: transparent; color: var(--term-dim); border: 0; border-left: 1px solid #2A3540; padding: 0 14px; cursor: pointer; min-width: 92px; }
+.cmd button:hover { color: var(--term-ink); }
+.oslabel { font: 500 11px/1 var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+details.out { border: 1px solid var(--line); border-radius: 10px; }
+details.out summary { cursor: pointer; padding: 10px 14px; font: 500 13px/1.3 var(--body); color: var(--muted); }
+details.out pre { margin: 0; padding: 14px; background: var(--term-bg); color: var(--term-ink); font: 400 13px/1.55 var(--mono); overflow-x: auto; border-radius: 0 0 10px 10px; }
+
+.say { background: var(--teal-soft); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.say h3 { color: var(--teal); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.say ul, .fix ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; }
+.fix { border: 1px dashed var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.fix h3 { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+.calc { display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.calc .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.calc .row button { font: 500 13px/1 var(--body); border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+.calc .row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.calc label { font-size: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.calc input { font: 500 15px/1 var(--mono); width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.calc .res { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: baseline; }
+.calc .res strong { font: 600 30px/1 var(--display); font-variant-numeric: tabular-nums; }
+
+.prep ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.prep li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+.prep input { margin-top: 5px; accent-color: var(--accent); width: 16px; height: 16px; }
+footer { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <span class="eyebrow">Тема 1 · Посібник викладача</span>
+    <h1>Живі демо до заняття</h1>
+    <p class="muted">Вісім коротких демонстрацій у порядку презентації. Для кожної є кроки, готові команди, приклад виводу, що сказати студентам і що робити, якщо щось не спрацювало. Натисніть на номер кроку, щоб позначити його виконаним.</p>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Операційна система" id="osSeg">
+        <button type="button" data-os="mac" aria-pressed="true">macOS</button>
+        <button type="button" data-os="linux" aria-pressed="false">Linux</button>
+        <button type="button" data-os="win" aria-pressed="false">Windows</button>
+      </div>
+      <button type="button" class="btn" id="resetMarks">Скинути позначки</button>
+      <span class="muted" id="totalTime" style="font-size:14px"></span>
+    </div>
+  </header>
+
+  <section class="card prep" aria-labelledby="prepH">
+    <h2 id="prepH">Перед заняттям</h2>
+    <ul id="prep"></ul>
+  </section>
+
+  <div class="layout">
+    <nav class="side" id="nav" aria-label="Демо"></nav>
+    <main id="demos"></main>
+  </div>
+
+  <footer>Приклади виводу умовні: ваші адреси й мілісекунди будуть інші. У прикладах публічні IP-адреси проміжних вузлів замінено на документаційні (203.0.113.x, 198.51.100.x).</footer>
+</div>
+
+<script>
+(() => {
+  const PREP = [
+    "Прогнати всі команди в аудиторії або з того самого Wi-Fi: корпоративні мережі часто блокують ping і traceroute.",
+    "Збільшити шрифт терміналу (Cmd/Ctrl + «+») до 20–24 pt, щоб читалося з останнього ряду.",
+    "Вимкнути сповіщення й закрити зайві вкладки: демонструєте екран.",
+    "Не показувати на записі домашню IP-адресу: для демо з bgp.he.net візьміть IP аудиторії або 8.8.8.8.",
+    "Мати запасний план: скриншоти виводу на випадок, якщо інтернет в аудиторії впаде.",
+    "Linux: перевірити, що встановлені traceroute і dig (sudo apt install traceroute dnsutils).",
+  ];
+
+  // cmd: string (same on all OS) or {mac, linux, win}
+  const DEMOS = [
+    {
+      id: "cern", title: "Перший сайт у світі", slide: "Частина 2 · «World Wide Web (1990)»", min: 3,
+      why: "Студенти бачать, що веб почався з простого тексту й посилань, і ця сторінка досі працює.",
+      steps: [
+        { text: 'Відкрийте в браузері <a href="http://info.cern.ch" target="_blank" rel="noopener">info.cern.ch</a>.' },
+        { text: "Натисніть <b>Browse the first website</b>: це відновлена копія першого сайту 1991 року." },
+        { text: "Відкрийте код сторінки: <b>Ctrl+U</b> (Windows, Linux) або <b>Cmd+Option+U</b> (macOS). Покажіть теги <code>&lt;A HREF=...&gt;</code>: гіперпосилання, заради якого все й створювалося." },
+      ],
+      say: [
+        "Тім Бернерс-Лі зробив його в CERN на комп'ютері NeXT. На сервері висіла наліпка «This machine is a server. DO NOT POWER IT DOWN!!».",
+        "Уся ідея WWW: HTML (розмітка) + HTTP (протокол) + URL (адреса) + посилання між документами.",
+        "Питання до групи: що з цього ви використовуєте щодня, 35 років по тому?",
+      ],
+      fix: ["Браузер може попередити, що сайт працює без HTTPS. Це нормально для сторінки 1991 року, продовжуйте."],
+    },
+    {
+      id: "bgp", title: "Чия це мережа: bgp.he.net", slide: "Частина 3 · «Хто володіє інтернетом?»", min: 5,
+      why: "Показує, що інтернет складається з тисяч автономних систем (AS), і в кожної є власник, номер і сусіди.",
+      steps: [
+        { text: "Дізнайтеся публічну IP-адресу мережі аудиторії:", cmd: { mac: "curl ifconfig.me", linux: "curl ifconfig.me", win: "curl.exe ifconfig.me" },
+          out: "203.0.113.57" },
+        { text: 'Відкрийте <a href="https://bgp.he.net" target="_blank" rel="noopener">bgp.he.net</a>, вставте адресу в пошук. Сайт покаже префікс (блок адрес) і <b>номер AS</b> провайдера.' },
+        { text: "Відкрийте сторінку цієї AS. Покажіть вкладки <b>Peers</b> (з ким мережа обмінюється трафіком), <b>Prefixes</b> (скільки адрес має) та <b>IX</b> (на яких точках обміну присутня, наприклад UA-IX)." },
+        { text: 'Для порівняння відкрийте великих гравців: <a href="https://bgp.he.net/AS15169" target="_blank" rel="noopener">AS15169 Google</a> і <a href="https://bgp.he.net/AS13335" target="_blank" rel="noopener">AS13335 Cloudflare</a>.' },
+        { text: 'Покажіть усю країну: <a href="https://bgp.he.net/country/UA" target="_blank" rel="noopener">bgp.he.net/country/UA</a>. Це список українських AS; зверніть увагу, скільки їх.' },
+        { text: "Бонус на macOS і Linux: хто зареєстрував адресу. Для 8.8.8.8 відповість американський реєстр ARIN (власник Google); підставте українську IP-адресу, і відповідатиме RIPE NCC.", cmd: { mac: "whois 8.8.8.8 | head -30", linux: "whois 8.8.8.8 | head -30", win: null } },
+      ],
+      say: [
+        "AS — це мережа з єдиним власником і правилами маршрутизації. Провайдер, університет, банк, Google.",
+        "Peers — це і є «ієрархія мереж» зі слайдів: з одними обмін безкоштовний, в інших купують транзит.",
+        "В Україні сотні AS. Саме тому нашу мережу так важко вимкнути повністю.",
+      ],
+      fix: ["Якщо curl не відповідає, відкрийте ifconfig.me у браузері.", "Windows не має whois, покажіть той самий запис на сайті apps.db.ripe.net."],
+    },
+    {
+      id: "dns", title: "Шлях DNS-запиту від кореня", slide: "Частина 3 · «Корінь DNS»", min: 5,
+      why: "Видно, як запит іде від кореневого сервера до .com і далі до серверів Google. Саме ці 13 імен A–M зі слайду.",
+      steps: [
+        { text: "Звичайний запит: яку адресу має google.com.", cmd: "nslookup google.com",
+          out: "Server:\t\t192.168.1.1\nAddress:\t192.168.1.1#53\n\nNon-authoritative answer:\nName:\tgoogle.com\nAddress: 142.250.186.206" },
+        { text: "Список кореневих серверів: порахуйте, їх 13.", cmd: { mac: "dig . NS +short", linux: "dig . NS +short", win: "nslookup -type=NS ." },
+          out: "a.root-servers.net.\nb.root-servers.net.\nc.root-servers.net.\n...\nm.root-servers.net." },
+        { text: "Повний шлях запиту крок за кроком: корінь → сервери .com → сервери google.com.", cmd: { mac: "dig +trace google.com", linux: "dig +trace google.com", win: null },
+          out: ".\t\t\t518400\tIN\tNS\ta.root-servers.net.\n...\n;; Received 525 bytes from 192.168.1.1#53(192.168.1.1)\n\ncom.\t\t\t172800\tIN\tNS\ta.gtld-servers.net.\n...\n;; Received 1170 bytes from 198.41.0.4#53(a.root-servers.net)\n\ngoogle.com.\t\t172800\tIN\tNS\tns1.google.com.\n...\n;; Received 836 bytes from 192.5.6.30#53(a.gtld-servers.net)\n\ngoogle.com.\t\t300\tIN\tA\t142.250.186.206\n;; Received 55 bytes from 216.239.32.10#53(ns1.google.com)" },
+        { text: "Windows: покажіть той самий результат командою PowerShell. Покроковий trace там недоступний, тож цей крок показуйте з macOS або Linux (підійде й WSL).", cmd: { mac: null, linux: null, win: "Resolve-DnsName google.com" } },
+      ],
+      say: [
+        "У виводі dig +trace три «стрибки»: корінь каже «питай у .com», .com каже «питай у ns1.google.com», а той дає адресу.",
+        "Корінь не знає адреси google.com. Він знає лише, кого спитати далі. Так DNS витримує мільярди запитів.",
+        "Детально DNS розберемо в темі 5.",
+      ],
+      fix: ["dig не знайдено на Linux: sudo apt install dnsutils.", "Мережа блокує прямі запити до кореня: dig +trace зависне. Покажіть скриншот."],
+    },
+    {
+      id: "cables", title: "Карта підводних кабелів", slide: "Частина 4 · «Інтернет під водою»", min: 5,
+      why: "Робить «99% трафіку йде під водою» відчутним: студенти бачать реальні кабелі, власників і вузькі місця.",
+      steps: [
+        { text: 'Відкрийте <a href="https://www.submarinecablemap.com" target="_blank" rel="noopener">submarinecablemap.com</a> і дайте карті завантажитися.' },
+        { text: "Наблизьте Середземне море і натисніть на <b>Марсель</b>: там виходить на берег понад десяток кабелів між Європою, Африкою та Азією." },
+        { text: "У пошуку наберіть <b>2Africa</b>: покажіть довжину і власників (серед них Meta). Потім <b>Dunant</b> або <b>Grace Hopper</b>: це кабелі Google." },
+        { text: "Наблизьте <b>Червоне море</b>: знайдіть AAE-1, SEACOM, EIG. Саме їх пошкодили у 2024 році. Видно, як багато кабелів проходить крізь одну протоку." },
+        { text: "Наблизьте острови Тонга: там лише одна нитка. Нагадайте про 2022 рік і 5 тижнів офлайн." },
+      ],
+      say: [
+        "Кожна лінія — кабель завтовшки з садовий шланг на дні океану.",
+        "Подивіться на колонку власників: це вже не лише телеком-компанії, а й Google, Meta, Microsoft, Amazon.",
+      ],
+      fix: ["Карта важка й повільна на слабкому інтернеті. Відкрийте її заздалегідь і тримайте вкладку відкритою."],
+    },
+    {
+      id: "trace", title: "Маршрут пакета: traceroute", slide: "Частина 4 · «Маршрутизатори (Routers)»", min: 5,
+      why: "Показує маршрутизатори на шляху і де саме з'являються затримки, зокрема перехід через океан.",
+      steps: [
+        { text: "Маршрут до Google: кожен рядок — один маршрутизатор (hop).", cmd: { mac: "traceroute -n google.com", linux: "traceroute -n google.com", win: "tracert -d google.com" },
+          out: "traceroute to google.com (142.250.186.206), 64 hops max\n 1  192.168.1.1      1.9 ms   1.7 ms   1.8 ms\n 2  10.20.0.1        4.3 ms   3.9 ms   4.1 ms\n 3  * * *\n 4  203.0.113.14     5.2 ms   5.0 ms   5.4 ms\n 5  198.51.100.9     6.1 ms   5.8 ms   6.0 ms\n 6  142.250.186.206  5.9 ms   6.2 ms   5.7 ms" },
+        { text: "Тепер далекий сервер в Австралії. Шукайте рядок, де час різко стрибає на 100+ мс: там пакет перетинає континенти.", cmd: { mac: "traceroute -n au.pool.ntp.org", linux: "traceroute -n au.pool.ntp.org", win: "tracert -d au.pool.ntp.org" },
+          out: " ...\n 7  198.51.100.33    28.4 ms  28.1 ms  28.6 ms   ← Франкфурт\n 8  198.51.100.70   176.9 ms 177.3 ms 176.5 ms   ← Сінгапур\n 9  203.0.113.101   271.2 ms 270.8 ms 271.5 ms   ← Сідней\n ..." },
+        { text: "Поясніть рядки <code>* * *</code>: маршрутизатор працює, але не відповідає на службові пакети traceroute. Це не збій." },
+        { text: "Бонус: живий traceroute, що оновлюється постійно.", cmd: { mac: "brew install mtr && sudo mtr google.com", linux: "sudo apt install mtr && mtr google.com", win: "pathping -n google.com" } },
+      ],
+      say: [
+        "Перші 1–2 рядки — ваш роутер і провайдер. Далі — мережі інших компаній: це ті самі AS з bgp.he.net.",
+        "Google відповідає за кілька мілісекунд, бо має сервери дуже близько, часто в Києві чи Варшаві.",
+        "Великий стрибок часу посеред маршруту — це підводний кабель і тисячі кілометрів скла.",
+      ],
+      fix: ["Всі рядки * * *: мережа аудиторії блокує traceroute. Спробуйте з мобільного інтернету (роздача з телефона).", "Linux: traceroute: command not found → sudo apt install traceroute або скористайтеся tracepath -n google.com.", "au.pool.ntp.org щоразу дає інший сервер, тож маршрут може змінюватися. Це нормально."],
+    },
+    {
+      id: "ping", title: "Затримка: ping і фізика світла", slide: "Частина 5 · «Мережеві затримки (Latency)»", min: 5,
+      why: "Затримку не можна «оптимізувати кодом» нижче фізичної межі. Студенти рахують її самі.",
+      steps: [
+        { text: "Пінг до Google: дивіться на <b>time</b> (час туди й назад) і <b>packet loss</b>.", cmd: { mac: "ping -c 4 google.com", linux: "ping -c 4 google.com", win: "ping google.com" },
+          out: "PING google.com (142.250.186.206): 56 data bytes\n64 bytes from 142.250.186.206: icmp_seq=0 ttl=116 time=4.8 ms\n64 bytes from 142.250.186.206: icmp_seq=1 ttl=116 time=5.1 ms\n64 bytes from 142.250.186.206: icmp_seq=2 ttl=116 time=4.6 ms\n64 bytes from 142.250.186.206: icmp_seq=3 ttl=116 time=5.3 ms\n\n--- google.com ping statistics ---\n4 packets transmitted, 4 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 4.6/4.9/5.3/0.3 ms" },
+        { text: "Пінг до Австралії і до Японії: порівняйте час.", cmd: { mac: "ping -c 4 au.pool.ntp.org", linux: "ping -c 4 au.pool.ntp.org", win: "ping au.pool.ntp.org" },
+          out: "64 bytes from 203.0.113.101: icmp_seq=0 ttl=48 time=292.4 ms\n64 bytes from 203.0.113.101: icmp_seq=1 ttl=48 time=291.8 ms\n..." },
+        { text: "Порахуйте фізичну межу в калькуляторі нижче. Світло в оптоволокні проходить ~200 000 км/с, тож на кожні 100 км відстані припадає щонайменше 1 мс відповіді «туди й назад».", calc: true },
+      ],
+      say: [
+        "Реальний час завжди більший за фізичну межу: кабелі не йдуть по прямій, а кожен маршрутизатор додає трохи часу.",
+        "Для порівняння: читання з оперативної пам'яті займає ~100 наносекунд, у мільйон разів швидше за запит до Австралії.",
+        "Висновок для розробника: 10 послідовних запитів до далекого сервера — це вже 3 секунди очікування.",
+      ],
+      fix: ["Request timed out: сервер не відповідає на ping (так налаштовано). Спробуйте jp.pool.ntp.org або 1.1.1.1.", "Корпоративна мережа може блокувати ping повністю: покажіть із роздачі з телефона."],
+    },
+    {
+      id: "curl", title: "З чого складається запит: curl", slide: "Частина 5 · «Анатомія веб-застосунку»", min: 5,
+      why: "Розкладає один HTTP-запит на етапи: DNS, TCP, TLS, відповідь сервера. Кожен етап — окрема тема курсу.",
+      steps: [
+        { text: "Виміряйте етапи одного запиту до google.com.", cmd: {
+            mac: 'curl -o /dev/null -s -w "DNS:   %{time_namelookup}s\\nTCP:   %{time_connect}s\\nTLS:   %{time_appconnect}s\\nTTFB:  %{time_starttransfer}s\\nTotal: %{time_total}s\\n" https://www.google.com',
+            linux: 'curl -o /dev/null -s -w "DNS:   %{time_namelookup}s\\nTCP:   %{time_connect}s\\nTLS:   %{time_appconnect}s\\nTTFB:  %{time_starttransfer}s\\nTotal: %{time_total}s\\n" https://www.google.com',
+            win: 'curl.exe -o NUL -s -w "DNS:   %{time_namelookup}s\\nTCP:   %{time_connect}s\\nTLS:   %{time_appconnect}s\\nTTFB:  %{time_starttransfer}s\\nTotal: %{time_total}s\\n" https://www.google.com' },
+          out: "DNS:   0.021s\nTCP:   0.027s\nTLS:   0.061s\nTTFB:  0.148s\nTotal: 0.153s" },
+        { text: "Запустіть ту саму команду ще раз. DNS майже 0: адресу вже збережено в кеші." },
+        { text: "Замініть адресу на далекий сайт, наприклад <code>https://www.unimelb.edu.au</code>, і порівняйте TCP та TLS: кожен «рукостиск» — це ще один рейс туди й назад." },
+      ],
+      say: [
+        "Значення накопичувальні: TLS 0.061 означає, що з початку запиту минула 61 мс.",
+        "DNS — тема 5, TCP — тема 4, TLS — тема 9, HTTP — тема 7. Тут усі вони в одному рядку.",
+        "TTFB (time to first byte) — скільки сервер «думав» над відповіддю. Це вже зона відповідальності бекенд-розробника.",
+      ],
+      fix: ["Windows PowerShell: пишіть саме curl.exe, бо просто curl там — інша команда (Invoke-WebRequest).", "Великий сайт може віддаватися через CDN з Європи, тоді різниці майже не буде. Це теж гарний привід поговорити про CDN."],
+    },
+    {
+      id: "radar", title: "Інтернет України наживо: Cloudflare Radar", slide: "Частина 6 · «Інтернет в Україні»", min: 5,
+      why: "Реальні графіки трафіку України: добовий ритм, провали під час відключень світла й атак.",
+      steps: [
+        { text: 'Відкрийте <a href="https://radar.cloudflare.com/ua" target="_blank" rel="noopener">radar.cloudflare.com/ua</a>: сторінка трафіку України.' },
+        { text: "Змініть період на <b>7 днів</b>, потім на <b>28 днів</b>. Покажіть добовий ритм (ніч / день) і провали. Спитайте групу, що могло статися в ці дні." },
+        { text: 'Відкрийте <a href="https://radar.cloudflare.com/outage-center" target="_blank" rel="noopener">Outage Center</a>: світовий журнал збоїв. Відфільтруйте Україну й покажіть записи з причинами (відключення електроенергії, пошкодження кабелів, рішення урядів).' },
+        { text: "Порівняйте з іншою країною, наприклад Польщею: графік рівний, без провалів." },
+      ],
+      say: [
+        "Кожен провал на графіку — це тисячі людей без зв'язку, але мережа загалом продовжує працювати.",
+        "Зв'язок із попередніми слайдами: децентралізація, резервне живлення, GPON, переїзд дата-центрів після ударів.",
+      ],
+      fix: ["Якщо графік порожній, спробуйте інший період: Radar іноді довантажує дані кілька секунд."],
+    },
+  ];
+
+  const CITIES = [["Варшава", 690], ["Франкфурт", 1530], ["Нью-Йорк", 7500], ["Токіо", 8200], ["Сідней", 14900]];
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  let os = store.get("demo-os", "mac");
+  let marks = store.get("demo-marks", {});
+  let prepMarks = store.get("demo-prep", {});
+
+  const el = (tag, attrs = {}, html) => { const e = document.createElement(tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); if (html !== undefined) e.innerHTML = html; return e; };
+
+  function cmdFor(step) {
+    if (!step.cmd) return undefined;
+    return typeof step.cmd === "string" ? step.cmd : step.cmd[os];
+  }
+
+  function copy(btn, text) {
+    const done = () => { btn.textContent = "Скопійовано"; setTimeout(() => (btn.textContent = "Копіювати"), 1400); };
+    const fallback = () => {
+      const code = btn.previousElementSibling, r = document.createRange();
+      r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = "Виділено: Ctrl+C";
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
+  }
+
+  function renderPrep() {
+    const ul = document.getElementById("prep"); ul.innerHTML = "";
+    PREP.forEach((t, i) => {
+      const li = el("li");
+      const id = "prep" + i;
+      const cb = el("input", { type: "checkbox", id });
+      cb.checked = !!prepMarks[i];
+      cb.addEventListener("change", () => { prepMarks[i] = cb.checked; store.set("demo-prep", prepMarks); });
+      li.append(cb, el("label", { for: id }, t));
+      ul.append(li);
+    });
+  }
+
+  function renderCalc(host) {
+    const box = el("div", { class: "calc" });
+    const row = el("div", { class: "row", role: "group", "aria-label": "Відстань від Києва" });
+    const lab = el("label", { for: "km" }, "Відстань, км ");
+    const inp = el("input", { id: "km", type: "number", min: "1", step: "10", value: "14900", inputmode: "numeric" });
+    lab.append(inp);
+    const res = el("div", { class: "res", "aria-live": "polite" });
+    const update = () => {
+      const d = Math.max(0, +inp.value || 0);
+      res.innerHTML = `<span><strong>${(d / 100).toFixed(1)} мс</strong> <span class="muted">мінімум туди й назад</span></span><span><strong>${(d / 200).toFixed(1)} мс</strong> <span class="muted">в один бік</span></span>`;
+      row.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.km === d));
+    };
+    CITIES.forEach(([name, km]) => {
+      const b = el("button", { type: "button", "data-km": km, "aria-pressed": "false" }, `Київ → ${name} · ${km.toLocaleString("uk-UA")} км`);
+      b.addEventListener("click", () => { inp.value = km; update(); });
+      row.append(b);
+    });
+    inp.addEventListener("input", update);
+    box.append(row, lab, res);
+    host.append(box);
+    update();
+  }
+
+  function renderDemos() {
+    const main = document.getElementById("demos"), nav = document.getElementById("nav");
+    main.innerHTML = ""; nav.innerHTML = "";
+    DEMOS.forEach((d) => {
+      const doneAll = d.steps.every((_, i) => marks[`${d.id}-${i}`]);
+      const a = el("a", { href: "#" + d.id, class: doneAll ? "done" : "" }, `<small>${d.slide.split(" · ")[0]} · ${d.min} хв</small><span class="t">${d.title}</span>`);
+      nav.append(a);
+
+      const card = el("section", { class: "card", id: d.id, "aria-labelledby": d.id + "-h" });
+      card.append(el("div", { class: "meta" }, `<span class="tag slide">${d.slide}</span><span class="tag">≈ ${d.min} хв</span>`));
+      card.append(el("h2", { id: d.id + "-h" }, d.title));
+      card.append(el("p", { class: "why muted" }, d.why));
+
+      const ol = el("ol", { class: "steps" });
+      d.steps.forEach((s, i) => {
+        const cmd = cmdFor(s);
+        if (s.cmd && cmd === null && !s.text) return;
+        const key = `${d.id}-${i}`;
+        const li = el("li", { class: marks[key] ? "checked" : "" });
+        const num = el("button", { type: "button", class: "num", "aria-pressed": String(!!marks[key]), "aria-label": `Крок ${i + 1}: позначити виконаним` }, String(i + 1));
+        num.addEventListener("click", () => { marks[key] = !marks[key]; store.set("demo-marks", marks); renderDemos(); });
+        const body = el("div", { class: "body" });
+        body.append(el("p", {}, s.text));
+        if (s.cmd) {
+          if (cmd === null) {
+            body.append(el("p", { class: "muted", style: "font-size:14px" }, os === "win" ? "На Windows цього кроку немає, пропустіть його." : "Цей крок лише для Windows."));
+          } else {
+            if (typeof s.cmd !== "string") body.append(el("span", { class: "oslabel" }, { mac: "macOS · Terminal", linux: "Linux · термінал", win: "Windows · PowerShell" }[os]));
+            const box = el("div", { class: "cmd" + (os === "win" ? " win" : "") });
+            const code = el("code"); code.textContent = cmd;
+            const btn = el("button", { type: "button" }, "Копіювати");
+            btn.addEventListener("click", () => copy(btn, cmd));
+            box.append(code, btn);
+            body.append(box);
+          }
+        }
+        if (s.out && cmd !== null) {
+          const det = el("details", { class: "out" });
+          det.append(el("summary", {}, "Приклад виводу (ваші цифри будуть інші)"));
+          const pre = el("pre"); pre.textContent = s.out; det.append(pre);
+          body.append(det);
+        }
+        if (s.calc) renderCalc(body);
+        li.append(num, body);
+        ol.append(li);
+      });
+      card.append(ol);
+
+      const say = el("div", { class: "say" });
+      say.append(el("h3", {}, "Що сказати студентам"));
+      const ul = el("ul"); d.say.forEach((t) => ul.append(el("li", {}, t))); say.append(ul);
+      card.append(say);
+
+      const fix = el("div", { class: "fix" });
+      fix.append(el("h3", {}, "Якщо не працює"));
+      const ul2 = el("ul"); d.fix.forEach((t) => ul2.append(el("li", {}, t))); fix.append(ul2);
+      card.append(fix);
+
+      main.append(card);
+    });
+    document.getElementById("totalTime").textContent = `Разом ≈ ${DEMOS.reduce((s, d) => s + d.min, 0)} хв на всі демо`;
+  }
+
+  document.querySelectorAll("#osSeg button").forEach((b) => {
+    b.setAttribute("aria-pressed", b.dataset.os === os);
+    b.addEventListener("click", () => {
+      os = b.dataset.os; store.set("demo-os", os);
+      document.querySelectorAll("#osSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      renderDemos();
+    });
+  });
+  document.getElementById("resetMarks").addEventListener("click", () => {
+    marks = {}; prepMarks = {}; store.set("demo-marks", marks); store.set("demo-prep", prepMarks);
+    renderPrep(); renderDemos();
+  });
+  renderPrep(); renderDemos();
+})();
+</script>
+</body>
+</html>

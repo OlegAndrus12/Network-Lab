@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body>
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">macOS 15.7 · tcpdump -n -ttttt (TCP-опції прибрано)</span></div>
+<pre><span class="h"># closed: tcpdump -i lo0, порт 9105</span>
+00:00:00.017497 IP 127.0.0.1.58920 &gt; 127.0.0.1.9105: Flags <span class="cmd">[S]</span>, seq 265015013, win 65535, length 0
+00:00:00.017510 IP 127.0.0.1.9105 &gt; 127.0.0.1.58920: Flags <span class="c">[R.]</span>, seq 0, ack 265015014, win 0, length 0
+                <span class="a">↑ RST,ACK через 13 мкс; ack = seq + 1</span>
+
+<span class="h"># filtered: nc -vz -G 20 10.255.255.1 80, tcpdump -i en0</span>
+<span class="f">00:00:00</span>.000000 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[SEW]</span>, seq 1128311429 …  <span class="a">← SYN</span>
+<span class="f">00:00:01</span>.000325 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …    <span class="a">← той самий seq</span>
+<span class="f">00:00:02</span>.000073 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …
+<span class="f">00:00:03</span>.000201 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …
+<span class="f">00:00:03</span>.999641 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …
+<span class="f">00:00:05</span>.000018 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …
+<span class="f">00:00:07</span>.000574 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …    <span class="a">← пауза 2 с</span>
+<span class="f">00:00:11</span>.000815 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …    <span class="a">← 4 с</span>
+<span class="f">00:00:19</span>.001199 IP 192.168.0.10.58861 &gt; 10.255.255.1.80: Flags <span class="cmd">[S]</span>, seq 1128311429 …    <span class="a">← 8 с</span>
+nc: connectx to 10.255.255.1 port 80 (tcp) failed: <span class="f">Operation timed out</span>  <span class="a">← жодної відповіді</span>
+</pre></body></html>

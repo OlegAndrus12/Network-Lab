@@ -1,0 +1,36 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>macOS — AUTO=1 ACCEPT_DELAY=8 ./run_demo.sh   ·   accept() запізно</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,Monaco,'DejaVu Sans Mono',monospace;}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:12px;white-space:pre}
+pre{padding:20px 24px 24px;white-space:pre;font:inherit}
+.k{color:#1e1e1e;background:#ffd75f;border-radius:2px;box-shadow:0 0 0 2px #ffd75f;font-weight:bold}
+.g{color:#7ee787}.r{color:#ff7b72}.c{color:#79c0ff}.a{color:#8b949e;font-style:italic}.m{color:#6e7681}
+ .win{font-size:16px}</style></head><body><div class="win">
+<div class="bar"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">macOS — AUTO=1 ACCEPT_DELAY=8 ./run_demo.sh   ·   accept() запізно</span></div>
+<pre><span class="c">$ AUTO=1 ACCEPT_DELAY=8 ./run_demo.sh</span>
+<span class="m">…</span>
+[00:01:20.4] Звіт:
+  клієнт #1 (порт 59146): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #2 (порт 59147): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #3 (порт 59148): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+  клієнт #4 (порт 59149): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+  клієнт #5 (порт 59150): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+<span class="m">…</span>
+[00:01:26.6] клієнт #3 (порт 59148): connect() не вдався: <span class="r">ETIMEDOUT</span> (Operation timed out)
+[00:01:26.8] клієнт #4 (порт 59149): connect() не вдався: <span class="r">ETIMEDOUT</span> (Operation timed out)
+[00:01:27.0] клієнт #5 (порт 59150): connect() не вдався: <span class="r">ETIMEDOUT</span> (Operation timed out)
+<span class="m">=== 3. Сервер викликає accept(): черга спорожнюється (чекаю 3 с) ===</span>
+[00:01:28.6] <span class="c">Починаю accept()</span>                     <span class="a">← запізно: ці троє вже здалися</span>
+[00:01:28.6] accept() №1: 127.0.0.1:59146  повідомлення: <span class="g">клієнт #1</span>
+[00:01:28.6] accept() №2: 127.0.0.1:59147  повідомлення: <span class="g">клієнт #2</span>
+<span class="m">…</span>
+<span class="m">=== 6. Скільки разів кожен клієнт надіслав SYN і свої 16 байтів (tcpdump, capture.txt) ===</span>
+  клієнтський порт 59146: SYN x1, дані x1
+  клієнтський порт 59147: SYN x1, дані x1
+  клієнтський порт 59148: SYN <span class="k">x13</span>, дані <span class="r">x0</span>  &lt;- повтори   <span class="a">← 13 SYN за ~6 с, далі здався</span>
+  клієнтський порт 59149: SYN <span class="k">x13</span>, дані <span class="r">x0</span>  &lt;- повтори
+  клієнтський порт 59150: SYN <span class="k">x13</span>, дані <span class="r">x0</span>  &lt;- повтори</pre></div></body></html>

@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body>
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">UDP · 9115: сервер слухає і мовчить · 9105: нікого</span></div>
+<pre><span class="h"># macOS 15.7</span>
+<span class="p">$</span> <span class="cmd">python3 probe.py --udp --timeout 2 127.0.0.1:9105 127.0.0.1:9115</span>
+<span class="h">ціль               | результат             | час     | термін nmap</span>
+-------------------+-----------------------+---------+--------------
+127.0.0.1:9105/udp | <span class="c">ICMP port unreachable</span> | <span class="c">0.30 мс</span> | <span class="c">closed</span>
+127.0.0.1:9115/udp | <span class="f">тиша, тайм-аут 2 с</span>    | <span class="f">2.00 с</span>  | <span class="f">open|filtered</span>   <span class="a">← відкритий, але мовчить</span>
+
+<span class="p">$</span> <span class="cmd">nc -vzu 127.0.0.1 9105</span>
+Connection to 127.0.0.1 port 9105 [udp/*] <span class="o">succeeded!</span>   <span class="a">← неправда: порт ЗАКРИТИЙ</span>
+
+<span class="h"># Docker (Linux 6.12): той самий 9105, але тепер за iptables -j DROP</span>
+<span class="p">+</span> <span class="cmd">iptables -A INPUT -p udp --dport 9105 -j DROP</span>
+127.0.0.1:9105/udp | <span class="f">тиша, тайм-аут 2 с</span>    | <span class="f">2.00 с</span>  | <span class="f">open|filtered</span>   <span class="a">← як і відкритий 9115</span>
+</pre></body></html>

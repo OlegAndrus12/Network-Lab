@@ -1,0 +1,38 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>macOS — AUTO=1 ./run_demo.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,Monaco,'DejaVu Sans Mono',monospace;}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:12px;white-space:pre}
+pre{padding:20px 24px 24px;white-space:pre;font:inherit}
+.k{color:#1e1e1e;background:#ffd75f;border-radius:2px;box-shadow:0 0 0 2px #ffd75f;font-weight:bold}
+.g{color:#7ee787}.r{color:#ff7b72}.c{color:#79c0ff}.a{color:#8b949e;font-style:italic}.m{color:#6e7681}
+ .win{font-size:16px}</style></head><body><div class="win">
+<div class="bar"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">macOS — AUTO=1 ./run_demo.sh   ·   listen(backlog=2), 5 клієнтів, accept() не викликається</span></div>
+<pre><span class="c">$ AUTO=1 ./run_demo.sh</span>
+[00:01:11.0] Сервер слухає 127.0.0.1:9107, <span class="k">listen(backlog=2)</span>, PID 51399
+<span class="m">…</span>
+[00:01:13.4] Звіт:
+  клієнт #1 (порт 59141): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #2 (порт 59142): connect() <span class="g">завершився</span> за 0.00 с
+  клієнт #3 (порт 59143): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+  клієнт #4 (порт 59144): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+  клієнт #5 (порт 59145): connect() <span class="r">ЩЕ ЧЕКАЄ</span> (SYN без відповіді?)
+Разом: connect() завершився у <span class="g">2</span>, чекають <span class="r">3</span>
+<span class="m">…</span>
+<span class="c">$ netstat -Lan -p tcp</span>      <span class="m"># qlen/incqlen/maxqlen</span>
+Current listen queue sizes (qlen/incqlen/maxqlen)
+Listen         Local Address
+<span class="k">2/0/2</span>          127.0.0.1.9107      <span class="a">← 2 чекають accept(), 0 напіввідкритих, ліміт 2</span>
+<span class="c">$ netstat -an -p tcp | grep 9107</span>      <span class="m"># без TIME_WAIT від попередніх запусків</span>
+Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)
+tcp4       0      0  127.0.0.1.59145        127.0.0.1.9107         <span class="r">SYN_SENT</span>
+tcp4       0      0  127.0.0.1.59144        127.0.0.1.9107         <span class="r">SYN_SENT</span>     <span class="a">← не вмістились</span>
+tcp4       0      0  127.0.0.1.59143        127.0.0.1.9107         <span class="r">SYN_SENT</span>
+tcp4      <span class="k">16</span>      0  127.0.0.1.9107         127.0.0.1.59142        <span class="g">ESTABLISHED</span>  <span class="a">← 16 байтів до accept()</span>
+tcp4       0      0  127.0.0.1.59142        127.0.0.1.9107         <span class="g">ESTABLISHED</span>
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59141        <span class="g">ESTABLISHED</span>
+tcp4       0      0  127.0.0.1.59141        127.0.0.1.9107         <span class="g">ESTABLISHED</span>
+tcp4       0      0  127.0.0.1.9107         *.*                    LISTEN       <span class="a">← 0 0: черги тут не видно</span></pre></div></body></html>

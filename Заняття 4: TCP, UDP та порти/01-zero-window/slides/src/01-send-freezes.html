@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="t">01-zero-window — ./docker_demo.sh (Linux у Docker)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./docker_demo.sh</span>
+<span class="sv">Сервер слухає 127.0.0.1:9101, SO_RCVBUF = 131 072 байтів</span>
+Підключено до 127.0.0.1:9101, SO_SNDBUF = 2 626 560 байтів
+<span class="sv">Connected: ('127.0.0.1', 58236)</span>
+<span class="sv">recv() НЕ викликаю 10 с ...</span>                        <span class="c">← сервер прийняв з'єднання і «спить»</span>
+<span class="cut">…</span>
+надіслано 262 144 байтів
+надіслано 524 288 байтів
+<span class="cut">…</span>
+надіслано 1 835 008 байтів
+<span class="sv">[сервер] у буфері прийому 127 168 байтів (прочитано додатком: 0)</span>
+<span class="dim">[tcpdump] 00:00:00.248834 IP 127.0.0.1.9101 > 127.0.0.1.58236: Flags [.], ack 127169, <span class="r">win 0</span>, length 0</span>
+<span class="b">!!! send() ЗАБЛОКОВАНО: мій буфер відправлення повний, бо вікно сервера = 0</span>
+  передано в send():               <span class="y">1 900 544</span> байтів
+  ще лежить у МОЄМУ буфері (Send-Q): <span class="y">1 773 376</span> байтів    <span class="c">← 93 % не покинули клієнта</span>
+  дійшло до буфера сервера:         <span class="y">127 168</span> байтів       <span class="c">← = буфер прийому сервера</span>
+<span class="cut">…</span>
+... send() чекає вже 2 с, надіслано 1 900 544 байтів      <span class="c">← прогрес стоїть</span>
+... send() чекає вже 4 с, надіслано 1 900 544 байтів
+... send() чекає вже 6 с, надіслано 1 900 544 байтів
+... send() чекає вже 8 с, надіслано 1 900 544 байтів</pre></div><script>var w=document.querySelector(".win");w.style.minWidth="0";document.title=w.offsetWidth+"x"+w.offsetHeight;w.style.minWidth="";</script></body></html>

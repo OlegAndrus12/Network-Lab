@@ -1,0 +1,26 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>tcpdump на lo у контейнері (окремий запуск, пакети вже після netem)</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.45 Menlo,"SF Mono",monospace;display:inline-block;min-width:100%}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9a9a9a;font-size:14px}
+.d{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:14px}
+pre{margin:0;padding:20px 24px 24px;font:inherit;white-space:pre}
+.p{color:#6a9955}.cmd{color:#ffffff;font-weight:bold}
+.udp{color:#e2b155}.tcp{color:#4fc1ff}
+.freeze{color:#ff6b6b;font-weight:bold}.burst{color:#ff6b6b}
+.skip{color:#e2b155;font-weight:bold}
+.ok{color:#89d185}.hl{color:#ffffff;font-weight:bold}
+.note{color:#8a8f98;font-style:italic}.cut{color:#6b6b6b}
+.lost{color:#ff6b6b;font-weight:bold}.retx{color:#ff6b6b;font-weight:bold}.dup{color:#e2b155;font-weight:bold}
+ body{width:1030px}</style></head><body><div class="win">
+<div class="bar"><span class="d" style="background:#ff5f57"></span><span class="d" style="background:#febc2e"></span><span class="d" style="background:#28c840"></span><span class="t">tcpdump на lo у контейнері (окремий запуск, пакети вже після netem)</span></div>
+<pre><span class="cut">…</span>
+00:00:02.551995 IP 9114 &gt; 45034: Flags [.], ack 537, length 0  <span class="note">← ACK тіка #025</span>
+00:00:02.700915 IP 45034 &gt; 9114: Flags [P.], seq 558:579, length 21  <span class="note">← #027; #026 (537:558) загублено</span>
+00:00:02.801022 IP 45034 &gt; 9114: Flags [P.], seq 579:600, length 21  <span class="note">← #028</span>
+<span class="dup">00:00:02.851100 IP 9114 &gt; 45034: Flags [.], ack 537, length 0</span>  <span class="note">← дубль ACK: «досі чекаю 537»</span>
+00:00:02.901085 IP 45034 &gt; 9114: Flags [P.], seq 600:621, length 21  <span class="note">← #029</span>
+<span class="retx">00:00:02.902058 IP 45034 &gt; 9114: Flags [P.], seq 537:558, length 21</span>  <span class="note">← повтор #026</span>
+00:00:02.951993 IP 9114 &gt; 45034: Flags [.], ack 537, length 0  <span class="note">← ще один дубль ACK 537</span>
+<span class="ok">00:00:02.952938 IP 9114 &gt; 45034: Flags [.], ack 621, length 0</span>  <span class="note">← дірку закрито: #026–#029 разом</span></pre></div></body></html>

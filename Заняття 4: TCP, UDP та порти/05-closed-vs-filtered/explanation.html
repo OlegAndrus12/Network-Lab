@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closed vs Filtered</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1f2328; --muted: #5b6370; --card: #ffffff; --border: #dcd9d2;
+  --code-bg: #f3f1ec; --accent: #1f5fae; --open: #1a7f37; --closed: #b35900; --filtered: #8250df;
+  --note-bg: #fff8e1; --note-border: #e0b400; --warn-bg: #fdecea; --warn-border: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --fg: #e6e6e3; --muted: #a0a6ae; --card: #1d2024; --border: #33373d;
+    --code-bg: #0f1113; --accent: #79b0f2; --open: #56d364; --closed: #f0a35a; --filtered: #c4a5ff;
+    --note-bg: #2b2611; --note-border: #a88a10; --warn-bg: #301a1a; --warn-border: #e06666;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --fg: #e6e6e3; --muted: #a0a6ae; --card: #1d2024; --border: #33373d;
+  --code-bg: #0f1113; --accent: #79b0f2; --open: #56d364; --closed: #f0a35a; --filtered: #c4a5ff;
+  --note-bg: #2b2611; --note-border: #a88a10; --warn-bg: #301a1a; --warn-border: #e06666;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+.sub { color: var(--muted); margin: 0 0 16px; }
+code { font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre {
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0 16px;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.ann { color: var(--muted); }
+.o { color: var(--open); font-weight: 600; }
+.c { color: var(--closed); font-weight: 600; }
+.f { color: var(--filtered); font-weight: 600; }
+.table-wrap { overflow-x: auto; margin: 8px 0 16px; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 0.95rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.note, .warn { border-left: 4px solid; border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
+.note { background: var(--note-bg); border-color: var(--note-border); }
+.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+nav ol { columns: 2; column-gap: 24px; padding-left: 20px; margin: 8px 0; }
+@media (max-width: 560px) { nav ol { columns: 1; } h1 { font-size: 1.4rem; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Demo 05: closed port vs filtered port, measured with a stopwatch</h1>
+<p class="sub">Topic 4 (TCP, UDP and ports), slide «Чому TCP сканувати легко…». Folder <code>05-closed-vs-filtered/</code>, ports 9105 (closed) and 9115 (open). Everything quoted below was really run on 22.10.2026: on macOS 15.7 (this Mac, home network, no VPN) and on Linux 6.12 in Docker Desktop.</p>
+
+<nav class="card"><strong>Contents</strong>
+<ol>
+<li><a href="#what">What the demo shows</a></li>
+<li><a href="#mechanism">The mechanism</a></li>
+<li><a href="#run">Running it live</a></li>
+<li><a href="#see">What students will see</a></li>
+<li><a href="#udp">The UDP half of the slide</a></li>
+<li><a href="#ask">Points to make and questions</a></li>
+<li><a href="#gotchas">Gotchas and recovery</a></li>
+<li><a href="#fallback">1-minute fallback</a></li>
+</ol></nav>
+
+<h2 id="what">1. What the demo shows</h2>
+<p>A port scanner learns about a port only from what comes back after it sends a SYN. There are three possible outcomes, and they differ so much in <em>time</em> that you can tell them apart with <code>time</code>:</p>
+<div class="table-wrap"><table>
+<tr><th>Target</th><th>What comes back</th><th>What <code>connect()</code> does</th><th>Measured time</th><th>nmap term</th></tr>
+<tr><td>127.0.0.1:9115 (listener)</td><td>SYN-ACK</td><td>succeeds</td><td>0.17 ms (macOS)</td><td class="o">open</td></tr>
+<tr><td>127.0.0.1:9105 (nobody)</td><td>RST,ACK from the kernel</td><td><code>ECONNREFUSED</code> at once</td><td>0.10 ms (macOS)</td><td class="c">closed</td></tr>
+<tr><td>10.255.255.1:80 / iptables DROP</td><td>nothing</td><td>retransmits SYN until timeout</td><td>5.00 s (= our timeout)</td><td class="f">filtered</td></tr>
+</table></div>
+<p>The second half adds the deterministic Linux version (iptables <code>DROP</code> vs <code>REJECT --reject-with tcp-reset</code>, with tcpdump), and the UDP case, where "open" and "filtered" look the same. That covers both halves of the slide title: TCP scanning is easy because every state answers differently; UDP scanning is hard because silence means two different things.</p>
+
+<h3>Files</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>probe.py</code></td><td>Times <code>connect()</code> per target, prints a table: target, result, time, nmap term. <code>--udp</code> for UDP, <code>--timeout</code>, targets as <code>host:port</code>.</td></tr>
+<tr><td><code>open_server.py</code></td><td>Listener on 9115 (TCP, accepts and closes; or <code>--udp</code>: receives and never answers).</td></tr>
+<tr><td><code>run_demo.sh</code></td><td>Host demo (macOS or Linux): three <code>time nc</code> runs plus the probe table; adds tcpdump if it can run without sudo. <code>./run_demo.sh docker</code> runs the Linux lab.</td></tr>
+<tr><td><code>linux_lab.sh</code>, <code>Dockerfile</code></td><td>The Linux lab inside container <code>demo05-lab</code>: no rules / DROP / REJECT / UDP, each with tcpdump.</td></tr>
+<tr><td><code>expected_output.txt</code></td><td>Real captured output, sections A to F. Your fallback.</td></tr>
+</table></div>
+
+<h2 id="mechanism">2. The mechanism: what the kernel does</h2>
+
+<h3>Open: SYN → SYN-ACK</h3>
+<p><code>connect()</code> makes the kernel send a SYN and put the socket in <code>SYN_SENT</code>. A socket in <code>LISTEN</code> on that port makes the server's kernel reply SYN-ACK; the client replies ACK and <code>connect()</code> returns. The application (<code>open_server.py</code>) is not even involved in the handshake: the kernel completes it and queues the connection for <code>accept()</code>. Time: one round trip.</p>
+
+<h3>Closed: SYN → RST,ACK</h3>
+<p>If no socket matches the destination port, TCP's rules (RFC 9293, "segment arrives in CLOSED state") say: answer with a reset. Because the SYN carried no ACK, the RST is sent with <code>seq 0</code> and <code>ack = their seq + 1</code>, which tcpdump shows as <code>Flags [R.]</code>. The client kernel aborts the attempt and <code>connect()</code> fails with <code>ECONNREFUSED</code> ("Connection refused"). Time: also one round trip, so on loopback it is a fraction of a millisecond. A closed port is a <em>definite, fast "no"</em>.</p>
+
+<h3>Filtered: SYN → silence → retransmits → timeout</h3>
+<p>If a firewall silently drops the SYN (or the address leads nowhere), nothing comes back. TCP cannot tell "lost packet" from "nobody there", so it does what it always does with unacknowledged data: retransmit on a timer. The initial retransmission timeout is 1 s (RFC 6298), and it grows with exponential backoff. The application just sits in <code>connect()</code> until either the kernel gives up or the application's own timeout fires.</p>
+<div class="card">
+<strong>Real SYN schedules we captured</strong> (seconds since the first SYN):
+<ul>
+<li><strong>macOS 15.7</strong>, <code>nc -G 20</code> to 10.255.255.1: <code>0, 1, 2, 3, 4, 5, 7, 11, 19</code>. Five retransmits 1 s apart, then the gap doubles: 2, 4, 8. With no app timeout, macOS gives up after <code>net.inet.tcp.keepinit</code> = 75 000 ms, which is why plain <code>nc -w 5</code> hung for 1:15.</li>
+<li><strong>Linux 6.12, default</strong> (<code>tcp_syn_linear_timeouts=4</code>): <code>0, 1.06, 2.08, 3.11, 4.13, 5.16, 7.20</code>. Same shape: linear first, then doubling.</li>
+<li><strong>Linux 6.12, classic</strong> (<code>tcp_syn_linear_timeouts=0</code>): <code>0, 1.04, 3.09, 7.12</code>. Gaps of 1, 2, 4 s: the textbook exponential backoff. Linux gives up after <code>tcp_syn_retries=6</code> retransmits, about 127 s in total in the classic schedule.</li>
+</ul>
+So the "1 s, 2 s, 4 s…" from the textbook is the classic behaviour; both kernels on our machines now start with a few linear 1 s retries. Worth mentioning, because a student who captures this at home will see it.
+</div>
+<p>Two more details in the macOS capture: the first SYN shows <code>Flags [SEW]</code> (it asks for ECN: E = ECE, W = CWR), and the retries are plain <code>[S]</code>. macOS drops the ECN request on retries, most likely as a fallback in case a middlebox discards ECN-flagged SYNs (our reading, not verified in the XNU source).</p>
+
+<h3>"Looks closed" on purpose: REJECT with tcp-reset</h3>
+<p><code>iptables -j REJECT --reject-with tcp-reset</code> makes the firewall forge exactly the RST the kernel would send. On the wire it is identical (<code>[R.]</code>, <code>seq 0</code>, <code>ack = seq+1</code>), so the scanner reports <span class="c">closed</span> even though our listener on 9115 is running. <code>DROP</code> makes the same running service <span class="f">filtered</span>. The admin chooses what the outside world sees.</p>
+<p class="ann">Aside, not run in this demo: plain <code>-j REJECT</code> (the default <code>icmp-port-unreachable</code>) and a router sending ICMP "administratively prohibited" also give a fast answer. nmap reports ICMP-unreachable answers to a TCP probe as <em>filtered</em>. <code>probe.py</code> labels <code>EHOSTUNREACH</code>/<code>ENETUNREACH</code> as "filtered (ICMP/маршрут)", but we did not get such a reply on this network, so that branch is untested.</p>
+
+<h3>Why nc needs different flags</h3>
+<ul>
+<li><strong>macOS <code>/usr/bin/nc</code></strong>: <code>-G 5</code> is the connect timeout. <code>-w 5</code> is only an idle timeout <em>after</em> connecting and does not shorten <code>connect()</code>: we measured <strong>1:15.01</strong> for <code>nc -vz -w 5 10.255.255.1 80</code>.</li>
+<li><strong>Linux <code>netcat-openbsd</code></strong>: <code>-w 5</code> limits the connect too (<code>real 8.010 s</code> for <code>-w 8</code>).</li>
+</ul>
+
+<h2 id="run">3. Running it live</h2>
+<h3>macOS (main path, about 30 s)</h3>
+<pre><code>cd 05-closed-vs-filtered
+./run_demo.sh                      # three "time nc" runs + probe table (+ tcpdump if allowed)</code></pre>
+<p>Or by hand, step by step, which is more dramatic for students:</p>
+<pre><code>python3 open_server.py &amp;               # terminal 1: open port 9115
+time nc -vz -G 5 127.0.0.1 9115        # open: instant "succeeded"
+time nc -vz -G 5 127.0.0.1 9105        # closed: instant "Connection refused"
+time nc -vz -G 5 10.255.255.1 80       # filtered: 5 s of silence, "Operation timed out"
+python3 probe.py                       # the same as a table
+lsof -nP -iTCP:9115 -sTCP:LISTEN       # who is listening (macOS netstat: netstat -an -p tcp | grep LISTEN)</code></pre>
+<p>tcpdump on macOS normally needs <code>sudo</code>. On this Mac it ran without sudo because the user is in the <code>access_bpf</code> group (installed by Wireshark's ChmodBPF). <code>run_demo.sh</code> detects this and skips capture otherwise. Manual capture:</p>
+<pre><code>sudo tcpdump -i lo0 -n -ttttt 'tcp port 9105 or tcp port 9115'
+sudo tcpdump -i en0 -n -ttttt 'host 10.255.255.1'     # interface: route -n get 10.255.255.1</code></pre>
+
+<h3>Docker / Linux lab (deterministic "filtered", about 30 s)</h3>
+<pre><code>./run_demo.sh docker                       # build image demo05-lab, run the four sections
+CLASSIC_BACKOFF=1 ./run_demo.sh docker     # same, SYN retries 1, 2, 4 s</code></pre>
+<p>Under the hood: <code>docker run --rm --cap-add NET_ADMIN --name demo05-lab demo05-lab</code>; <code>CLASSIC_BACKOFF</code> adds <code>--sysctl net.ipv4.tcp_syn_linear_timeouts=0</code> (the sysctl is read-only from inside the container, so it has to be set at <code>docker run</code>). To drive it by hand, run <code>docker run --rm -it --cap-add NET_ADMIN --name demo05-lab demo05-lab bash</code> and then:</p>
+<pre><code>python3 open_server.py &amp;
+tcpdump -i lo -n -ttttt 'tcp port 9105' &amp;
+nc -vz -w 5 127.0.0.1 9105                                    # closed: RST
+iptables -A INPUT -p tcp --dport 9105 -j DROP                 # now filtered
+time nc -vz -w 8 127.0.0.1 9105                               # watch the SYN retries
+iptables -F INPUT
+iptables -A INPUT -p tcp --dport 9115 -j REJECT --reject-with tcp-reset
+nc -vz -w 5 127.0.0.1 9115                                    # listener running, still "refused"
+ss -ltn                                                       # Linux: who is listening</code></pre>
+
+<h2 id="see">4. What students will see (real output)</h2>
+<h3>macOS, <code>./run_demo.sh</code></h3>
+<pre><code>Маршрут до 10.255.255.1: інтерфейс en0
+
+$ time nc -vz -G 5 127.0.0.1 9115
+Connection to 127.0.0.1 port 9115 [tcp/*] succeeded!
+real 0.019 s                                         <span class="ann">← open: one round trip</span>
+
+$ time nc -vz -G 5 127.0.0.1 9105
+nc: connectx to 127.0.0.1 port 9105 (tcp) failed: Connection refused
+real 0.008 s                                         <span class="ann">← closed: just as fast, but "no"</span>
+
+$ time nc -vz -G 5 10.255.255.1 80
+nc: connectx to 10.255.255.1 port 80 (tcp) failed: Operation timed out
+real 5.010 s                                         <span class="ann">← filtered: waited for our full timeout</span>
+
+ціль                | результат                      | час     | термін nmap
+--------------------+--------------------------------+---------+------------
+127.0.0.1:9115/tcp  | SYN-ACK: з'єднання встановлено | 0.17 мс | <span class="o">open</span>
+127.0.0.1:9105/tcp  | RST: Connection refused        | 0.10 мс | <span class="c">closed</span>
+10.255.255.1:80/tcp | тиша, тайм-аут 5 с             | 5.00 с  | <span class="f">filtered</span></code></pre>
+<p class="ann">The nc times (8 to 19 ms) are mostly process start-up; probe.py measures only <code>connect()</code>, hence 0.1 ms.</p>
+<p>The macOS capture (TCP options removed for width):</p>
+<pre><code><span class="ann"># lo0: closed port</span>
+ 00:00:00.017497 IP 127.0.0.1.58920 &gt; 127.0.0.1.9105: Flags [S], seq 265015013, win 65535, length 0
+ 00:00:00.017510 IP 127.0.0.1.9105 &gt; 127.0.0.1.58920: Flags [R.], seq 0, ack 265015014, win 0, length 0
+                                                       <span class="ann">↑ RST,ACK 13 µs later; ack = their seq + 1</span>
+<span class="ann"># en0: 10.255.255.1 (nc -G 20, run separately)</span>
+ 00:00:00.000000 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [SEW], ...   <span class="ann">← SYN asking for ECN</span>
+ 00:00:01.000325 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...     <span class="ann">← same seq: retransmit</span>
+ 00:00:02.000073 ...  00:00:03.000201 ...  00:00:03.999641 ...  00:00:05.000018
+ 00:00:07.000574 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...     <span class="ann">← gap 2 s</span>
+ 00:00:11.000815 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...     <span class="ann">← gap 4 s</span>
+ 00:00:19.001199 IP 192.168.0.155.58861 &gt; 10.255.255.1.80: Flags [S], ...     <span class="ann">← gap 8 s; not a single reply</span></code></pre>
+
+<h3>Linux lab: DROP vs REJECT</h3>
+<pre><code>=================== 2. iptables -j DROP: порт стає filtered ===================
+-A INPUT -p tcp -m tcp --dport 9105 -j DROP
+$ time nc -vz -w 8 127.0.0.1 9105
+nc: connect to 127.0.0.1 port 9105 (tcp) timed out: Operation now in progress
+real 8.010 s
+ 00:00:00.000000 IP 127.0.0.1.36918 &gt; 127.0.0.1.9105: Flags [S], seq 4003900074, ...
+ 00:00:01.059335 ... [S] ...   00:00:02.083279 ... [S] ...   00:00:03.107291 ... [S] ...
+ 00:00:04.131388 ... [S] ...   00:00:05.156179 ... [S] ...
+ 00:00:07.203363 IP 127.0.0.1.36918 &gt; 127.0.0.1.9105: Flags [S], ...   <span class="ann">← first 2 s gap</span>
+
+127.0.0.1:9115/tcp | тиша, тайм-аут 3 с | 3.00 с | <span class="f">filtered</span>   <span class="ann">← a listener is running here!</span>
+127.0.0.1:9105/tcp | тиша, тайм-аут 3 с | 3.00 с | <span class="f">filtered</span>
+
+<span class="ann"># CLASSIC_BACKOFF=1: SYNs at 0, 1.04, 3.09, 7.12 s, i.e. gaps of 1, 2, 4 s</span>
+
+=================== 3. iptables -j REJECT --reject-with tcp-reset: виглядає як closed ===================
+ 00:00:00.000000 IP 127.0.0.1.55970 &gt; 127.0.0.1.9115: Flags [S], seq 1451154442, ...
+ 00:00:00.000007 IP 127.0.0.1.9115 &gt; 127.0.0.1.55970: Flags [R.], seq 0, ack 1451154443, win 0, length 0
+127.0.0.1:9115/tcp | RST: Connection refused | 0.16 мс | <span class="c">closed</span>   <span class="ann">← listener running, looks closed</span></code></pre>
+<p>Note that tcpdump sees the dropped SYNs because it captures before netfilter's INPUT chain. "Filtered" does not mean the packet never arrived; it means nobody answered.</p>
+
+<h2 id="udp">5. The UDP half: why UDP scanning is slow and ambiguous</h2>
+<p>UDP has no handshake. A probe datagram can produce:</p>
+<ul>
+<li><strong>Closed:</strong> the kernel replies with ICMP type 3 code 3, "port unreachable". A <em>connected</em> UDP socket receives that as <code>ECONNREFUSED</code> on the next <code>recv()</code>, so <code>probe.py --udp</code> sees it instantly.</li>
+<li><strong>Open:</strong> the datagram is delivered to the application, which usually ignores a payload it does not understand. Silence.</li>
+<li><strong>Filtered:</strong> dropped. Silence.</li>
+</ul>
+<p>Open and filtered both look like silence, so nmap reports <span class="f">open|filtered</span>, and the scanner has to wait for a timeout (and retry, since UDP packets get lost) on every such port. Kernels also rate-limit ICMP errors (Linux: <code>net.ipv4.icmp_ratelimit</code> / <code>icmp_msgs_per_sec</code>), so even closed ports can answer slowly in bulk. nmap works around this by sending protocol-specific payloads (a real DNS query to 53, etc.) to provoke a reply from open services.</p>
+<pre><code><span class="ann"># Linux lab, section 4 (macOS gave the same table: 0.30 ms / 2.00 s)</span>
+127.0.0.1:9105/udp | ICMP port unreachable | 0.54 мс | <span class="c">closed</span>
+127.0.0.1:9115/udp | тиша, тайм-аут 2 с    | 2.00 с  | <span class="f">open|filtered</span>     <span class="ann">← open, but silent</span>
+ 00:00:00.000000 IP 127.0.0.1.46191 &gt; 127.0.0.1.9105: UDP, length 4
+ 00:00:00.000440 IP 127.0.0.1 &gt; 127.0.0.1: ICMP 127.0.0.1 udp port 9105 unreachable, length 40
+ 00:00:00.000682 IP 127.0.0.1.38559 &gt; 127.0.0.1.9115: UDP, length 4      <span class="ann">← no reply at all</span>
++ iptables -A INPUT -p udp --dport 9105 -j DROP
+127.0.0.1:9105/udp | тиша, тайм-аут 2 с    | 2.00 с  | <span class="f">open|filtered</span>     <span class="ann">← identical to the open one</span></code></pre>
+<div class="warn"><strong>nc lies about UDP, and differently per OS.</strong> On macOS, <code>nc -vzu 127.0.0.1 9105</code> printed <em>"succeeded!"</em> with exit code 0 for the <strong>closed</strong> port, even though tcpdump showed the ICMP port-unreachable replies. On Linux (netcat-openbsd), the same command printed nothing and exited 1, while the open port printed "succeeded" after the 2 s timeout. "Succeeded" for UDP only means "no error arrived (in time)". A nice live moment, if you have time.</div>
+
+<h2 id="ask">6. Points to make and questions for students</h2>
+<ul>
+<li>Ask before running: "Which will be faster, the closed port or the firewalled one? Why?" Then show the 0.1 ms vs 5 s.</li>
+<li>Closed is not "worse" than open from a scanner's point of view: it proves the host is alive and reachable. That is why admins prefer DROP on the perimeter.</li>
+<li>Why does a scanner love closed ports? One RTT per port, no ambiguity. Why does it hate filtered? It must wait out a timeout per port, so scanners send many probes in parallel.</li>
+<li>Show that DROP hides even a running service, and REJECT tcp-reset makes it look closed. "Can a scanner ever be sure a port is closed?" (No: it only knows what came back.)</li>
+<li>Why does the SYN carry the same <code>seq</code> on every retry? (It is the same connection attempt being retransmitted, not a new one.)</li>
+<li>UDP: "If the open port is silent and the firewalled port is silent, how could nmap tell them apart?" (Send a valid request for the expected service and hope for an answer.)</li>
+</ul>
+
+<h2 id="gotchas">7. Gotchas and what to do if it misbehaves</h2>
+<ul>
+<li><strong>Filtered case is instant instead of 5 s.</strong> The classroom network probably answered with ICMP unreachable or a router RST, or there is no default route. Check <code>route -n get 10.255.255.1</code> (macOS) / <code>ip route get 10.255.255.1</code> (Linux). Try <code>FILTERED_HOST=192.0.2.1 ./run_demo.sh</code> (TEST-NET-1, not routed on the internet; untested here) or go straight to the Docker lab, which is fully deterministic.</li>
+<li><strong>VPN / corporate network.</strong> If the route goes through <code>utun*</code>, the VPN may route 10.0.0.0/8 to a real network. <code>run_demo.sh</code> prints a warning in that case. Disconnect the VPN or use Docker.</li>
+<li><strong>"Порт 9115 уже хтось слухає".</strong> A previous <code>open_server.py</code> is still alive. <code>lsof -nP -iTCP:9115 -sTCP:LISTEN</code>, then <code>kill &lt;PID&gt;</code>. (If you start it by hand with <code>&amp;</code>, stop it with <code>kill %1</code>.)</li>
+<li><strong>nc hangs for 75 s on macOS.</strong> You used <code>-w</code>. Use <code>-G 5</code>. Ctrl+C is safe.</li>
+<li><strong>No tcpdump output on macOS.</strong> It needs <code>sudo</code> unless you are in the <code>access_bpf</code> group; the demo works without the capture.</li>
+<li><strong>Docker: iptables error.</strong> The container needs <code>--cap-add NET_ADMIN</code> (run_demo.sh adds it). <code>CLASSIC_BACKOFF=1</code> fails on kernels without <code>tcp_syn_linear_timeouts</code>; just drop the variable.</li>
+<li><strong>First Docker run is slow</strong> (image build, apt-get). Run <code>./run_demo.sh docker</code> once before class so the image is cached; later runs take about 30 s.</li>
+<li><strong>Leftovers.</strong> The container uses <code>--rm</code>; check with <code>docker ps -a --filter name=demo05</code>. Remove the image after the course with <code>docker rmi demo05-lab</code>.</li>
+</ul>
+
+<h2 id="fallback">8. 1-minute fallback</h2>
+<p>If the network or Docker misbehaves, open <code>expected_output.txt</code> and show:</p>
+<ol>
+<li><strong>Section A</strong>: the three <code>time nc</code> results and the table (0.10 ms vs 5.00 s).</li>
+<li><strong>Section C</strong>: the 1:15 hang of <code>nc -w 5</code> on macOS, a nice "read the man page" moment.</li>
+<li><strong>Section E, part 2 and 3</strong>: SYN retries under DROP vs the forged RST under REJECT, with the listener running in both.</li>
+<li><strong>Section F</strong>: the classic 1, 2, 4 s backoff.</li>
+<li><strong>Section D/E part 4</strong>: UDP closed = ICMP, open = filtered = silence.</li>
+</ol>
+<p>Summary line for the slide: <em>TCP always answers (SYN-ACK or RST) unless someone drops the packet, so every port is open, closed or "suspiciously silent" after one round trip. UDP answers only when the port is closed, so silence is ambiguous and every silent port costs a full timeout.</em></p>
+
+</main>
+</body>
+</html>

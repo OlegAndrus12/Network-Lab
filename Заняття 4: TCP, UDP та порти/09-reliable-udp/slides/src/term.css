@@ -1,0 +1,18 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #141414; }
+body { padding: 0; font-family: Menlo, Monaco, "DejaVu Sans Mono", monospace; }
+.row { display: flex; gap: 16px; align-items: stretch; }
+.win { background: #1e1e1e; border-radius: 10px; overflow: hidden; border: 1px solid #333; flex: 1; }
+.bar { background: #2d2d2d; height: 34px; display: flex; align-items: center; padding: 0 14px; gap: 8px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.r { background: #ff5f57; } .y { background: #febc2e; } .g { background: #28c840; }
+.title { color: #9a9a9a; font-size: 13px; margin-left: 10px; white-space: nowrap; }
+pre { margin: 0; padding: 20px 24px 24px; color: #d4d4d4; font: 16px/1.55 Menlo, Monaco, monospace; white-space: pre; }
+.p { color: #6a9955; } .cmd { color: #ffffff; }
+.k { color: #4fc1ff; font-weight: bold; }   /* UDP / good: key numbers */
+.ok { color: #6fcf97; font-weight: bold; }  /* boundaries kept / recovered */
+.bad { color: #ff8a80; font-weight: bold; } /* boundaries lost */
+.w { color: #f0b36a; }                      /* fragments / in progress */
+.m { color: #8a8a8a; font-style: italic; }  /* annotations */
+.cut { color: #8a8a8a; }
+.hdr { color: #c586c0; }

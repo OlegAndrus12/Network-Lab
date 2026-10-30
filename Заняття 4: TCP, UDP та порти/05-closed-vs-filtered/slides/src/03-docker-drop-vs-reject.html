@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body>
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">Docker · Linux 6.12 · ./run_demo.sh docker   (на 9115 слухає open_server.py)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh docker</span>
+<span class="cut">…</span>
+<span class="h">=== 2. iptables -j DROP: порт стає filtered ===</span>
+-A INPUT -p tcp -m tcp --dport 9105 <span class="f">-j DROP</span>
+-A INPUT -p tcp -m tcp --dport 9115 <span class="f">-j DROP</span>
+<span class="cut">…</span>
+00:00:00.000000 IP 127.0.0.1.46118 &gt; 127.0.0.1.9105: Flags [S], seq 2897493398 …
+00:00:01.035308 IP 127.0.0.1.46118 &gt; 127.0.0.1.9105: Flags [S], seq 2897493398 …
+<span class="cut">…</span>
+00:00:07.179351 IP 127.0.0.1.46118 &gt; 127.0.0.1.9105: Flags [S], seq 2897493398 …  <span class="a">← 7 SYN, відповіді немає</span>
+<span class="cut">…</span>
+127.0.0.1:9115/tcp | <span class="f">тиша, тайм-аут 3 с</span> | <span class="f">3.01 с</span> | <span class="f">filtered</span>   <span class="a">← сервіс працює, але схований</span>
+127.0.0.1:9105/tcp | <span class="f">тиша, тайм-аут 3 с</span> | <span class="f">3.00 с</span> | <span class="f">filtered</span>
+
+<span class="h">=== 3. iptables -j REJECT --reject-with tcp-reset: виглядає як closed ===</span>
+-A INPUT -p tcp -m tcp --dport 9115 <span class="c">-j REJECT --reject-with tcp-reset</span>
+<span class="cut">…</span>
+00:00:00.000000 IP 127.0.0.1.41270 &gt; 127.0.0.1.9115: Flags [S], seq 2540892724, win 65495, length 0
+00:00:00.000009 IP 127.0.0.1.9115 &gt; 127.0.0.1.41270: Flags <span class="c">[R.]</span>, seq 0, ack 2540892725, win 0, length 0
+<span class="a">                ↑ RST від фаєрвола не відрізнити від RST ядра</span>
+<span class="cut">…</span>
+127.0.0.1:9115/tcp | <span class="c">RST: Connection refused</span> | <span class="c">0.28 мс</span> | <span class="c">closed</span>   <span class="a">← сервіс працює, а виглядає закритим</span>
+</pre></body></html>

@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"><style>body{width:max-content}</style></head><body>
+<div class="win"><div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">docker run … demo06-linux ./capture.sh — tcpdump на lo (Linux)</span></div>
+<pre><span class="p">$</span> <span class="cmd">docker run --rm --name demo06-cap -v "$PWD":/demo demo06-linux ./capture.sh</span>
+<span class="hdr">A. TCP_NODELAY=1 (Нейгл вимкнено): кожен send() -> окремий сегмент</span>
+<span class="cut">…</span>
+--- на дроті (tcpdump; * = сегмент з даними):
+<span class="cut">   … рукостискання SYN / SYN-ACK / ACK …</span>
+<span class="k">*</span>  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq <span class="k">1:101</span>, ack 1, win 512, <span class="k">length 100</span>
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 101, win 511, length 0
+<span class="k">*</span>  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq <span class="k">101:201</span>, ack 1, win 512, <span class="k">length 100</span>
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 201, win 511, length 0
+<span class="k">*</span>  IP 127.0.0.1.54964 &gt; 127.0.0.1.9116: Flags [P.], seq <span class="k">201:301</span>, ack 1, win 512, <span class="k">length 100</span>
+   IP 127.0.0.1.9116 &gt; 127.0.0.1.54964: Flags [.], ack 301, win 511, length 0
+<span class="cut">   … закриття FIN …</span>
+    <span class="k">сегментів з даними: 3</span>              <span class="m">← на дроті три окремі сегменти, ядро підтвердило кожен</span>
+--- приймач:
+  recv #1:    <span class="bad">300 байтів</span>  b'&lt;MSG-1 -------' ... b'- END-3&gt;'
+<span class="bad">Разом recv(): 1, байтів: 300</span>      <span class="m">← а застосунок отримав один шматок: злиття в буфері прийому</span></pre></div></body></html>

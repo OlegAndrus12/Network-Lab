@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="t">01-zero-window — пояснений tcpdump (annotate.py, capture.txt)</span></div>
+<pre><span class="hdr">=== Пояснений вивід (capture.txt; для Wireshark: capture.pcap) ===</span>
+   0.000 с  сервер > клієнт: [S.], seq 2613690529, ack 2827459821, win 65483, length 0  <span class="c">← рукостискання, wscale 7 (вікно × 128)</span>
+<span class="cut">…</span>
+   0.000 с  сервер > клієнт: [.], ack 32742, win 737, length 0  <span class="c">← вікно: 737 × 128 = 94336 байтів вільно</span>
+   0.041 с  сервер > клієнт: [.], ack 112705, win 113, length 0 <span class="c">← вікно: 113 × 128 = 14464 байтів вільно</span>
+   0.249 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0   <span class="c">← <<< ВІКНО = 0: «стоп, мій буфер повний»</span>
+   0.457 с  <span class="b">клієнт > сервер</span>: [.], ack 1, win 512, length 0      <span class="c">← zero-window probe №1,</span> <span class="y">+0.208 с</span>
+   0.457 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0   <span class="c">← відповідь на пробу: досі win 0</span>
+   0.873 с  <span class="b">клієнт > сервер</span>: [.], ack 1, win 512, length 0      <span class="c">← zero-window probe №2,</span> <span class="y">+0.416 с</span>
+                                                                <span class="c">  (відповіді немає: rate limit)</span>
+   1.721 с  <span class="b">клієнт > сервер</span>: [.], ack 1, win 512, length 0      <span class="c">← zero-window probe №3,</span> <span class="y">+0.848 с</span>
+   1.721 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0   <span class="c">← відповідь на пробу: досі win 0</span>
+   3.385 с  <span class="b">клієнт > сервер</span>: [.], ack 1, win 512, length 0      <span class="c">← zero-window probe №4,</span> <span class="y">+1.664 с</span>
+   3.385 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0   <span class="c">← відповідь на пробу: досі win 0</span>
+   6.713 с  <span class="b">клієнт > сервер</span>: [.], ack 1, win 512, length 0      <span class="c">← zero-window probe №5,</span> <span class="y">+3.328 с</span>
+   6.713 с  сервер > клієнт: [.], ack 127169, <span class="r">win 0</span>, length 0   <span class="c">← відповідь на пробу: досі win 0</span>
+<span class="cut">…</span>
+Проби клієнта (zero-window probes): 5, інтервали, с: <span class="y">0.208, 0.416, 0.848, 1.664, 3.328</span>   <span class="c">← подвоєння</span>
+Без відповіді сервера: проба №2 (Linux обмежує такі ACK: net.ipv4.tcp_invalid_ratelimit = 500 мс)
+Відповіді сервера 'win 0': 5, інтервали, с: <span class="dim">0.208, 1.264, 1.664, 3.328</span>           <span class="c">← «нерівні»</span>
+Сервер застряг на ack 127169: у його буфері 127168 байтів, які додаток не прочитав</pre></div><script>var w=document.querySelector(".win");w.style.minWidth="0";document.title=w.offsetWidth+"x"+w.offsetHeight;w.style.minWidth="";</script></body></html>

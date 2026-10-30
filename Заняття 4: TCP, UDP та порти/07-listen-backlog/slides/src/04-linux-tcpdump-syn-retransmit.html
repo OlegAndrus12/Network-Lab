@@ -1,0 +1,22 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Linux (Docker) — tcpdump -i lo -n -l &quot;tcp port 9107&quot;   ·   «зайвий» клієнт 53446 (options [...] прибрано)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#1e1e1e}
+.win{background:#1e1e1e;color:#d4d4d4;font:16px/1.5 Menlo,Monaco,'DejaVu Sans Mono',monospace;}
+.bar{background:#2d2d2d;padding:10px 16px;display:flex;align-items:center;gap:8px;color:#9d9d9d;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.t{margin-left:12px;white-space:pre}
+pre{padding:20px 24px 24px;white-space:pre;font:inherit}
+.k{color:#1e1e1e;background:#ffd75f;border-radius:2px;box-shadow:0 0 0 2px #ffd75f;font-weight:bold}
+.g{color:#7ee787}.r{color:#ff7b72}.c{color:#79c0ff}.a{color:#8b949e;font-style:italic}.m{color:#6e7681}
+ .win{font-size:15px}</style></head><body><div class="win">
+<div class="bar"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">Linux (Docker) — tcpdump -i lo -n -l &quot;tcp port 9107&quot;   ·   «зайвий» клієнт 53446 (options [...] прибрано)</span></div>
+<pre><span class="m"># tcpdump запускає run_demo.sh; рядки лише одного клієнта</span>
+21:01:33.525383 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags <span class="r">[S]</span>, seq <span class="k">240545858</span>, win 65495, length 0  <span class="a">← SYN №1</span>
+21:01:34.538447 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags <span class="r">[S]</span>, seq <span class="k">240545858</span>, win 65495, length 0  <span class="a">← повтор</span>
+21:01:35.562251 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags <span class="r">[S]</span>, seq <span class="k">240545858</span>, win 65495, length 0  <span class="a">← повтор</span>
+21:01:36.586237 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags <span class="r">[S]</span>, seq <span class="k">240545858</span>, win 65495, length 0  <span class="a">← після accept()</span>
+21:01:36.586256 IP 127.0.0.1.9107 &gt; 127.0.0.1.53446: Flags <span class="g">[S.]</span>, seq 1887696490, ack 240545859, win 65483, length 0
+21:01:36.586274 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags <span class="g">[.]</span>, ack 1, win 512, length 0
+21:01:36.586403 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [P.], seq 1:17, ack 1, win 512, length 16
+21:01:36.586424 IP 127.0.0.1.9107 &gt; 127.0.0.1.53446: Flags [.], ack 17, win 512, length 0</pre></div></body></html>

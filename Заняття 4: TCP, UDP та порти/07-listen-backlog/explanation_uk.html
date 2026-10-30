@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Черга listen</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1f2328; --muted: #5d6670; --card: #ffffff; --border: #dcd8cf;
+  --code-bg: #f2efe8; --accent: #2457a6;
+  --hl-bg: #eaf2ff; --hl-border: #2f6fd1;
+  --warn-bg: #fff4e0; --warn-border: #c97a00;
+  --note: #8a4b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --fg: #e6e6e6; --muted: #9aa3ad; --card: #1e2126; --border: #353a42;
+    --code-bg: #23272e; --accent: #7fb0ff;
+    --hl-bg: #1b2a40; --hl-border: #5b95ef;
+    --warn-bg: #33270f; --warn-border: #e0a23a;
+    --note: #f0b86a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --fg: #e6e6e6; --muted: #9aa3ad; --card: #1e2126; --border: #353a42;
+  --code-bg: #23272e; --accent: #7fb0ff;
+  --hl-bg: #1b2a40; --hl-border: #5b95ef;
+  --warn-bg: #33270f; --warn-border: #e0a23a;
+  --note: #f0b86a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: hidden; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 8px; border-top: 2px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+a { color: var(--accent); }
+nav ol { padding-left: 20px; margin: 8px 0; }
+code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; overflow-x: auto; max-width: 100%; white-space: pre; }
+pre code { background: none; padding: 0; }
+.n { color: var(--note); }
+.box { border-left: 4px solid; border-radius: 6px; padding: 10px 14px; margin: 14px 0; }
+.box > :first-child { margin-top: 0; } .box > :last-child { margin-bottom: 0; }
+.hl { background: var(--hl-bg); border-color: var(--hl-border); }
+.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+.box .tag { font-weight: 700; display: block; margin-bottom: 4px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+dl dt { font-weight: 600; margin-top: 10px; }
+dl dd { margin: 2px 0 0 16px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Демо 07: сервер, що не викликає accept()</h1>
+<p class="sub">Тема 4. TCP, UDP та порти. Слайд «Життєвий цикл TCP-сокета», вправа 8. Папка <code>07-listen-backlog/</code>, порт 9107.</p>
+
+<p><strong>Суть за 20 секунд.</strong> Сервер робить <code>listen(2)</code> і жодного разу не викликає <code>accept()</code>. Підключаються 5 клієнтів. Перші кілька «підключені» й навіть надіслали дані: рукостискання завершило <em>ядро</em>, а не програма. Готові з'єднання стоять у черзі accept. Ті, хто не вмістився, висять у <code>SYN-SENT</code>, бо їхні SYN мовчки відкидаються. Коли сервер починає <code>accept()</code>, черга спорожнюється і клієнти, що чекали, заходять на наступному повторі SYN.</p>
+
+<nav><ol>
+  <li><a href="#run">Як запустити</a></li>
+  <li><a href="#output">Що означає вивід</a></li>
+  <li><a href="#emphasis">На чому наголосити</a></li>
+</ol></nav>
+
+<!-- ============================================================ -->
+<h2 id="run">1. Як запустити</h2>
+
+<h3>Перед парою</h3>
+<ul>
+  <li><strong>Docker-образ зібрати заздалегідь, поки є інтернет</strong> (<code>apt-get</code> у Dockerfile). Найпростіше: один раз запустити <code>./run_docker.sh</code>, він сам збере образ <code>demo07-backlog</code>.</li>
+  <li><code>python3</code> 3.9+ у PATH (лише стандартна бібліотека). Інший Python: <code>PYTHON=/шлях/до/python3 ./run_demo.sh</code>. Аліас <code>python3</code> у shell скрипт не бачить.</li>
+  <li>Термінал не вужчий за ~90 колонок: рядки <code>netstat -an</code> на macOS довгі.</li>
+  <li>Один пробний прогін <code>./run_demo.sh</code> на ноутбуці, з якого будете показувати.</li>
+</ul>
+
+<h3>Варіант А: одна команда (рекомендовано)</h3>
+<pre><code>cd 07-listen-backlog
+./run_demo.sh                 # macOS або Linux; Enter, коли хочете, щоб почався accept()
+AUTO=1 ./run_demo.sh          # без Enter: accept() через ACCEPT_DELAY с (типово 1) після знімка черги
+N=8 BACKLOG=3 ./run_demo.sh   # інші числа
+PORT=9117 ./run_demo.sh       # запасний порт</code></pre>
+<p>Скрипт друкує кроки: <code>=== 1</code> сервер і клієнти, <code>=== 2</code> знімок черги, запрошення натиснути Enter, <code>=== 3</code> accept() і спорожнення, <code>=== 4</code> знімок ще раз, <code>=== 5</code> завершення, <code>=== 6</code> скільки SYN надіслав кожен клієнт (лише якщо tcpdump працює без sudo).</p>
+
+<div class="box warn"><span class="tag">Увага: macOS і Enter</span>
+<p>На macOS клієнти, що чекають, здаються приблизно через 6 с після першого SYN (<code>ETIMEDOUT</code>). Тобто після знімка черги на Enter є <strong>близько 4 с</strong>. Не встигли: побачите <code>ETIMEDOUT</code> (теж добрий момент для пояснення, див. прогін D), але спорожнення черги не буде. Хочете гарантовано показати спорожнення: <code>AUTO=1 ./run_demo.sh</code>.</p></div>
+
+<h3>Варіант Б: Linux у Docker (ss, nstat, tcpdump)</h3>
+<pre><code>./run_docker.sh                        # звичайний: зайві клієнти в SYN-SENT, LISTEN Recv-Q 3 / Send-Q 2
+AUTO=1 ./run_docker.sh                 # без Enter
+./run_docker.sh cookies                # затримка 50 мс на lo + одночасні connect(): випадок SYN cookies
+SYNCOOKIES=0 ./run_docker.sh cookies   # те саме з вимкненими cookies: знову SYN-SENT</code></pre>
+<p>У контейнер передаються лише <code>N</code>, <code>BACKLOG</code>, <code>AUTO</code>, <code>ACCEPT_DELAY</code>, <code>DRAIN</code>, <code>WAIT</code> (не <code>PORT</code>). У контейнері ви root, тож tcpdump і крок 6 працюють завжди.</p>
+
+<h3>Змінні середовища (<code>run_demo.sh</code>)</h3>
+<div class="table-wrap"><table>
+<tr><th>Змінна</th><th>Типово</th><th>Що робить</th></tr>
+<tr><td><code>N</code></td><td>5</td><td>скільки клієнтів</td></tr>
+<tr><td><code>BACKLOG</code></td><td>2</td><td>аргумент <code>listen()</code></td></tr>
+<tr><td><code>PORT</code></td><td>9107</td><td>порт сервера</td></tr>
+<tr><td><code>AUTO</code></td><td>не задано</td><td>будь-яке значення: не чекати Enter</td></tr>
+<tr><td><code>ACCEPT_DELAY</code></td><td>1</td><td>з <code>AUTO</code>: пауза перед accept(), с</td></tr>
+<tr><td><code>DRAIN</code></td><td>3 (macOS) / 10 (Linux)</td><td>скільки чекати після початку accept() до другого знімка</td></tr>
+<tr><td><code>GAP</code></td><td>0.2</td><td>пауза між connect() клієнтів, с</td></tr>
+<tr><td><code>WAIT</code></td><td>1</td><td>скільки клієнти чекають перед першим звітом, с</td></tr>
+<tr><td><code>PYTHON</code></td><td>python3</td><td>який інтерпретатор</td></tr>
+<tr><td><code>SYNCOOKIES</code></td><td>1</td><td>лише <code>run_docker.sh</code>: <code>net.ipv4.tcp_syncookies</code> у контейнері</td></tr>
+</table></div>
+
+<h3>Варіант В: вручну з nc (живіше)</h3>
+<p>macOS, три термінали в папці демо:</p>
+<pre><code># Термінал 1: сервер (listen(2), чекає на Enter)
+python3 server.py
+
+# Термінал 2: п'ять клієнтів (-d: nc не читає stdin)
+for i in 1 2 3 4 5; do nc -d 127.0.0.1 9107 &amp; done
+
+# Термінал 3: дивимось на чергу
+netstat -Lan -p tcp | grep 9107          # 2/0/2 = qlen/incqlen/maxqlen
+netstat -an -p tcp | grep '\.9107 '      # 2 пари ESTABLISHED + 3 SYN_SENT
+lsof -nP -iTCP:9107                      # те саме з іменами процесів
+
+# Термінал 1: Enter (і пам'ятайте про ~6 с на macOS)
+# Прибирання, термінал 2:
+pkill -f 'nc -d 127.0.0.1 9107'</code></pre>
+<p>Linux у Docker, два термінали:</p>
+<pre><code># Термінал 1
+docker run --rm -it --name demo07-lab --cap-add NET_ADMIN --cap-add NET_RAW \
+  -v "$PWD":/demo demo07-backlog bash
+python3 server.py
+
+# Термінал 2
+docker exec -it demo07-lab bash
+tcpdump -i lo -n 'tcp port 9107' &amp;      # необов'язково: видно повтори SYN
+for i in 1 2 3 4 5; do nc -d 127.0.0.1 9107 &amp; done
+ss -ltn 'sport = :9107'                  # LISTEN  Recv-Q 3  Send-Q 2
+ss -tan '( sport = :9107 or dport = :9107 )'
+nstat -az TcpExtListenOverflows TcpExtListenDrops
+# Термінал 1: Enter, потім знову ss -ltn: Recv-Q 0</code></pre>
+<div class="box warn"><span class="tag">Увага: nc без <code>-d</code></span>
+<p>Без <code>-d</code> і з закритим stdin nc на macOS одразу після підключення надсилає FIN: з'єднання ще в черзі accept, а вже <code>CLOSE_WAIT</code>/<code>FIN_WAIT_2</code>. У інтерактивному shell фоновий nc без <code>-d</code> ще й може бути зупинений, бо читає термінал.</p></div>
+
+<h3>Якщо щось пішло не так</h3>
+<div class="table-wrap"><table>
+<tr><th>Симптом</th><th>Що робити</th></tr>
+<tr><td>macOS: клієнти пишуть <code>ETIMEDOUT</code>, поки ви не натиснули Enter</td><td>Вікно ~6 с. Поясніть («клієнт здався після 13 SYN») і повторіть з <code>AUTO=1 ./run_demo.sh</code>.</td></tr>
+<tr><td>Linux: після Enter клієнти 4–5 заходять через кілька секунд</td><td>Так і має бути: вони заходять на наступному повторі SYN. Скрипт чекає 10 с.</td></tr>
+<tr><td><code>Address already in use</code></td><td>Висить старий сервер: <code>pkill -f server.py</code> або <code>PORT=9117 ./run_demo.sh</code>.</td></tr>
+<tr><td>Багато <code>TIME_WAIT</code> у ручному netstat/ss</td><td>Залишки попереднього прогону. Скрипти їх фільтрують; вручну додайте <code>| grep -v TIME_WAIT</code>.</td></tr>
+<tr><td>Linux: <code>Recv-Q 4</code> при backlog 2</td><td>Рідкісні перегони при одночасних connect() (бачили один раз з 5 одночасними nc, у 9 інших прогонах було 3). Скажіть «ліміт приблизний» або повторіть.</td></tr>
+<tr><td>Немає кроку 6 (лічба SYN)</td><td>tcpdump потрібен root (Linux) або доступ до <code>/dev/bpf*</code> (macOS). Решта демо працює.</td></tr>
+<tr><td><code>nstat</code> показує більші числа</td><td>На «живому» Linux це загальносистемні лічильники. У Docker вони рахуються від старту контейнера.</td></tr>
+<tr><td><code>run_docker.sh</code> висить на збиранні</td><td>Немає інтернету. Показуйте macOS-варіант або записаний вивід.</td></tr>
+<tr><td>Треба все зупинити</td><td><code>Ctrl+C</code> у <code>run_demo.sh</code> вбиває сервер, клієнтів і tcpdump. Вручну: <code>Ctrl+C</code> у сервері, <code>pkill -f 'nc -d 127.0.0.1 9107'</code>, <code>docker rm -f demo07-lab</code>.</td></tr>
+</table></div>
+
+<div class="box hl"><span class="tag">Запасний план: записаний вивід</span>
+<p>Відкрийте <code>expected_output.txt</code> і пройдіть три місця: <strong>розділ B, крок 2</strong> (Linux: <code>LISTEN 3 2</code>, три пари ESTAB з Recv-Q 16, два SYN-SENT); <strong>розділ C</strong> (той самий SYN 4 рази на Linux і 12 разів на macOS, потім SYN-ACK); <strong>розділ A, кроки 2 і 4</strong> (macOS: <code>2/0/2</code> стає <code>0/0/2</code>, сервер друкує accept() №1…№5).</p></div>
+
+<!-- ============================================================ -->
+<h2 id="output">2. Що означає вивід</h2>
+<p>Усе нижче скопійовано з <code>expected_output.txt</code> (реальні прогони 22–23.10.2026: macOS 15 / Darwin 24.6 і Linux 6.12.76-linuxkit у Docker 29). <strong>Порти, PID і час щоразу інші</strong>; кількість повторів SYN залежить від того, як довго ви тягнете з Enter.</p>
+
+<h3>Механізм, який треба тримати в голові</h3>
+<pre><code>SYN клієнта ─▶ ┌──────────────────────────┐ останній ACK ┌───────────────────────────┐ accept()
+               │ черга SYN (напіввідкриті,│ ───────────▶ │ черга accept (готові,     │ ────────▶ процес
+               │ SYN-RECV, «incqlen»)     │              │ ESTABLISHED, «qlen»)      │
+               └──────────────────────────┘              └───────────────────────────┘
+                  обидві обмежені backlog                    повна? нові SYN відкидаються</code></pre>
+<p><code>listen()</code> вмикає стан LISTEN, і далі SYN, SYN-ACK та останній ACK обробляє ядро. <code>accept()</code> рукостискання не робить: він лише забирає з черги вже готове з'єднання й дає процесу новий дескриптор. <code>backlog</code> обмежує довжину цієї черги.</p>
+
+<h3>Linux (прогін B), крок 2: черга, поки ніхто не викликає accept()</h3>
+<pre><code>[21:01:34.9] Звіт:
+  клієнт #1 (порт 53436): connect() завершився за 0.00 с
+  клієнт #2 (порт 53440): connect() завершився за 0.00 с
+  клієнт #3 (порт 53442): connect() завершився за 0.00 с        <span class="n">← 3 = backlog + 1</span>
+  клієнт #4 (порт 53446): connect() ЩЕ ЧЕКАЄ (SYN без відповіді?)
+  клієнт #5 (порт 53452): connect() ЩЕ ЧЕКАЄ (SYN без відповіді?)
+Разом: connect() завершився у 3, чекають 2
+
+$ ss -ltn 'sport = :9107'      # LISTEN: Recv-Q = черга accept, Send-Q = backlog
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN 3      2          127.0.0.1:9107      0.0.0.0:*           <span class="n">← черга 3, ліміт 2</span>
+$ ss -tan '( sport = :9107 or dport = :9107 )'      # без TIME-WAIT
+ESTAB    16     0          127.0.0.1:9107     127.0.0.1:53442   <span class="n">← бік сервера: 16 байтів, які ніхто не прочитав</span>
+ESTAB    0      0          127.0.0.1:53442    127.0.0.1:9107    <span class="n">← бік клієнта: «підключено»</span>
+SYN-SENT 0      1          127.0.0.1:53452    127.0.0.1:9107    <span class="n">← не вмістився (Send-Q 1 = сам SYN)</span>
+SYN-SENT 0      1          127.0.0.1:53446    127.0.0.1:9107
+...
+TcpExtListenOverflows           4                  0.0          <span class="n">← 2 клієнти × 2 відкинуті SYN</span>
+TcpExtListenDrops               4                  0.0</code></pre>
+<dl>
+  <dt><code>connect() завершився за 0.00 с</code></dt>
+  <dd>Клієнт отримав SYN-ACK і відправив ACK. Програма-сервер при цьому нічого не робила: рукостискання завершило ядро. Одразу після цього клієнт надсилає 16 байтів «клієнт #N».</dd>
+  <dt><code>LISTEN 3 2</code></dt>
+  <dd>Для сокета в стані LISTEN <code>ss</code> змінює зміст колонок: <code>Recv-Q</code> = поточна довжина черги accept, <code>Send-Q</code> = backlog (значення з <code>listen()</code>, обрізане <code>net.core.somaxconn</code>). Для всіх інших станів це байти в буферах. Це і є примітка до вправи 8. Linux тримає <strong>backlog + 1</strong>, бо перевірка «черга повна» звучить як «довжина &gt; backlog».</dd>
+  <dt><code>ESTAB 16 0</code> на боці сервера</dt>
+  <dd>З'єднання в черзі є повноцінним TCP-з'єднанням: ядро прийняло 16 байтів і підтвердило їх ACK, хоча <code>accept()</code> ще не було. Байти чекають у буфері прийому.</dd>
+  <dt><code>SYN-SENT 0 1</code></dt>
+  <dd>Клієнт надіслав SYN і чекає. Сервер не відповідає нічим: ні SYN-ACK, ні RST. SYN просто відкинуто, а <code>Send-Q 1</code> означає непідтверджений SYN (він займає 1 номер послідовності).</dd>
+  <dt><code>TcpExtListenOverflows</code> / <code>TcpExtListenDrops</code></dt>
+  <dd>Лічильники ядра: скільки SYN відкинуто через повну чергу accept. Тут 4: кожен із двох «зайвих» клієнтів встиг надіслати по 2 SYN.</dd>
+</dl>
+
+<h3>Linux, крок 3: accept() починається</h3>
+<pre><code>[21:01:36.2] Починаю accept()
+[21:01:36.2] accept() №1: 127.0.0.1:53436  повідомлення: клієнт #1     <span class="n">← дані надіслано 3 с тому, вони чекали в буфері</span>
+[21:01:36.2] accept() №2: 127.0.0.1:53440  повідомлення: клієнт #2
+[21:01:36.2] accept() №3: 127.0.0.1:53442  повідомлення: клієнт #3
+[21:01:36.5] клієнт #4 (порт 53446): connect() нарешті завершився (чекав 3.1 с)
+[21:01:36.5] accept() №4: 127.0.0.1:53446  повідомлення: клієнт #4
+[21:01:36.7] клієнт #5 (порт 53452): connect() нарешті завершився (чекав 3.1 с)
+[21:01:36.7] accept() №5: 127.0.0.1:53452  повідомлення: клієнт #5
+...
+LISTEN 0      2          127.0.0.1:9107      0.0.0.0:*                 <span class="n">← черга порожня</span></code></pre>
+<p>Перші три забираються миттєво. Клієнти 4 і 5 заходять не тоді, коли сервер звільнив місце, а коли надіслали <em>наступний повтор SYN</em>. Сервер нікому не «передзвонює».</p>
+
+<h3>tcpdump: один «зайвий» клієнт (розділ C)</h3>
+<pre><code>21:01:33.525383 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0   <span class="n">← SYN</span>
+21:01:34.538447 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0   <span class="n">← той самий seq: повтор через ~1 с</span>
+21:01:35.562251 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0
+21:01:36.586237 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [S], seq 240545858, win 65495, length 0   <span class="n">← 4-й, accept() щойно звільнив місце</span>
+21:01:36.586256 IP 127.0.0.1.9107 &gt; 127.0.0.1.53446: Flags [S.], seq 1887696490, ack 240545859, ...  <span class="n">← нарешті SYN-ACK</span>
+21:01:36.586274 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [.], ack 1, win 512, length 0            <span class="n">← ACK: рукостискання завершено</span>
+21:01:36.586403 IP 127.0.0.1.53446 &gt; 127.0.0.1.9107: Flags [P.], seq 1:17, ack 1, win 512, length 16 <span class="n">← 16 байтів «клієнт #4»</span></code></pre>
+<p>Між SYN немає жодної відповіді сервера: відкидання мовчазне. Крок 6 скрипта підсумовує це як <code>SYN x4, дані x1  &lt;- повтори</code>.</p>
+
+<h3>macOS (прогін A), крок 2</h3>
+<pre><code>$ netstat -Lan -p tcp      # qlen/incqlen/maxqlen
+Current listen queue sizes (qlen/incqlen/maxqlen)
+Listen         Local Address
+2/0/2          127.0.0.1.9107          <span class="n">← 2 чекають accept / 0 напіввідкритих / ліміт 2</span>
+$ netstat -an -p tcp | grep 9107
+tcp4       0      0  127.0.0.1.59145        127.0.0.1.9107         SYN_SENT
+tcp4       0      0  127.0.0.1.59144        127.0.0.1.9107         SYN_SENT
+tcp4       0      0  127.0.0.1.59143        127.0.0.1.9107         SYN_SENT
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59142        ESTABLISHED
+tcp4       0      0  127.0.0.1.59142        127.0.0.1.9107         ESTABLISHED
+tcp4      16      0  127.0.0.1.9107         127.0.0.1.59141        ESTABLISHED
+tcp4       0      0  127.0.0.1.59141        127.0.0.1.9107         ESTABLISHED
+tcp4       0      0  127.0.0.1.9107         *.*                    LISTEN      <span class="n">← 0 0: тут черги не видно</span></code></pre>
+<ul>
+  <li>macOS тримає рівно <strong>backlog</strong> (2), а не backlog + 1: підключились 2 клієнти, чекають 3.</li>
+  <li><code>incqlen</code> = 0, бо на loopback рукостискання завершується миттєво.</li>
+  <li>У <code>netstat -an</code> для LISTEN колонки Recv-Q/Send-Q нічого особливого не означають (0 0). Чергу на macOS дивимось лише через <code>-L</code>.</li>
+  <li>Після accept() (крок 4): <code>0/0/2</code>, а клієнти 3–5 друкують <code>connect() нарешті завершився (чекав 3.9–4.0 с)</code>. На кроці 6: <code>SYN x12</code> у кожного з трьох.</li>
+</ul>
+
+<h3>macOS: інший ритм повторів SYN</h3>
+<p>Клієнт 59143 (розділ C): 12 SYN. Перші приблизно кожні 30 мс (11.900, 11.956, 11.987, 12.018, 12.048, 12.079), далі з подвоєнням (12.139, 12.260, 12.500, 12.981, 13.941, 15.862), і 12-й отримав SYN-ACK одразу після accept():</p>
+<pre><code>00:01:15.862598 IP 127.0.0.1.59143 &gt; 127.0.0.1.9107: Flags [S], seq 270292374, win 65535, length 0
+00:01:15.862683 IP 127.0.0.1.9107 &gt; 127.0.0.1.59143: Flags [S.], seq 884459104, ack 270292375, win 65535, length 0</code></pre>
+<p>Якщо accept() запізнився (прогін D, <code>AUTO=1 ACCEPT_DELAY=8 ./run_demo.sh</code>): 13 SYN приблизно за 6 с, далі</p>
+<pre><code>[00:01:26.6] клієнт #3 (порт 59148): connect() не вдався: ETIMEDOUT (Operation timed out)</code></pre>
+<p>і сервер приймає лише 2 з'єднання. Наше тлумачення (у коді XNU не перевіряли): BSD-стек дає 12 повторів, а RTO на loopback крихітний, тож вони вичерпуються за секунди. У реальній мережі ті самі 12 повторів тривали б значно довше.</p>
+
+<h3>Linux, випадок SYN cookies (необов'язково, для сильної групи)</h3>
+<p><code>./run_docker.sh cookies</code> (прогін E): затримка 50 мс на lo і одночасні connect(). Тепер переповнюється вже черга SYN (вона теж обмежена backlog), і ядро відповідає SYN cookie: SYN-ACK без збереження стану.</p>
+<pre><code>  клієнт #4 (порт 41598): connect() завершився за 0.10 с       <span class="n">← усі 5 «підключені»!</span>
+  клієнт #5 (порт 41606): connect() завершився за 0.10 с
+LISTEN 3      2          127.0.0.1:9107       0.0.0.0:*         <span class="n">← а в черзі лише 3</span>
+ESTAB  0      16         127.0.0.1:41598    127.0.0.1:9107    <span class="n">← клієнт: 16 байтів без ACK</span>
+ESTAB  0      16         127.0.0.1:41606    127.0.0.1:9107    <span class="n">← рядків сервера для 41598/41606 немає взагалі</span>
+TcpExtSyncookiesSent            2
+TcpExtSyncookiesRecv            8
+...
+[21:01:58.2] accept() №4: 127.0.0.1:41598  повідомлення: клієнт #4   <span class="n">← через 5.3 с після початку accept()</span></code></pre>
+<p>Клієнт вважає себе ESTABLISHED, а сервер про нього нічого не знає: останній ACK відкинуто, бо черга accept повна (<code>tcp_abort_on_overflow=0</code>). Клієнт повторює свої 16 байтів (у tcpdump 6 повторів з інтервалами 0.3, 0.3, 0.6, 1.3, 2.5, 5.4 с); кожен повтор знову несе cookie, і перший, що прийшов після звільнення місця, створює з'єднання. З <code>SYNCOOKIES=0</code> (прогін F) зайві SYN просто відкидаються, клієнти в SYN-SENT, як у B.</p>
+
+<!-- ============================================================ -->
+<h2 id="emphasis">3. На чому наголосити</h2>
+
+<div class="box hl"><span class="tag">Момент «ага»</span>
+<p>Програма жодного разу не викликала <code>accept()</code>, а три клієнти вже «підключені» й надіслали дані, і ядро їх підтвердило (<code>Recv-Q 16</code>). Рукостискання робить ядро, <code>accept()</code> лише забирає готове з'єднання з черги.</p></div>
+
+<h3>Ключові тези</h3>
+<ol>
+  <li><strong>listen() і accept() ділять роботу.</strong> Після <code>listen()</code> SYN / SYN-ACK / ACK обробляє ядро. <code>accept()</code> = «дай наступне готове з'єднання».</li>
+  <li><strong>Черга видима.</strong> Linux: <code>ss -ltn</code>, для LISTEN <code>Recv-Q</code> = черга, <code>Send-Q</code> = backlog (вправа 8). macOS: <code>netstat -Lan</code>, <code>qlen/incqlen/maxqlen</code>.</li>
+  <li><strong>Повна черга = мовчання, а не відмова.</strong> Ні RST, ні SYN-ACK: SYN відкидається, клієнт у SYN-SENT повторює його з тим самим seq.</li>
+  <li><strong>Клієнт заходить на наступному повторі SYN</strong>, а не в момент accept(). Звідси «сайт відкрився рівно через 1 с / 3 с» на перевантажених серверах.</li>
+  <li><strong>Однаковий API, різні ОС.</strong> Linux: backlog + 1, повтори ~1 с; macOS: рівно backlog, повтори з ~30 мс і здається через ~6 с на loopback. Обидва варіанти коректні для TCP.</li>
+  <li><strong>Практика.</strong> Сервер, що повільно робить accept() (заблокований event loop, усі воркери зайняті), ззовні виглядає саме так. Тому backlog і <code>somaxconn</code> налаштовують (Nginx і Node.js на Linux типово беруть 511).</li>
+</ol>
+
+<h3>Питання до аудиторії</h3>
+<dl>
+  <dt>«Хто зробив рукостискання для клієнтів 1–3?»</dt>
+  <dd>Ядро ОС сервера. Програма ще не викликала accept().</dd>
+  <dt>«Чому в <code>LISTEN 3 2</code> черга 3, а backlog 2?»</dt>
+  <dd>Linux тримає backlog + 1 (перевірка «довжина &gt; backlog»). На macOS було рівно 2.</dd>
+  <dt>«Що сервер відповідає клієнту 4?»</dt>
+  <dd>Нічого. SYN мовчки відкинуто.</dd>
+  <dt>«Чому мовчати краще, ніж надіслати RST?»</dt>
+  <dd>RST змусив би клієнта одразу отримати помилку. Мовчання змушує його повторити, а це правильно для короткочасного перевантаження.</dd>
+  <dt>«Чому клієнт 4 не підключився в ту ж мить, коли почався accept()?»</dt>
+  <dd>Сервер нікого не кличе назад; клієнт зайде на своєму наступному повторі SYN.</dd>
+  <dt>(Для сильних) «Клієнт ESTABLISHED, отже сервер про нього знає?»</dt>
+  <dd>Ні: у випадку SYN cookies клієнт «підключений», а на сервері немає жодного запису. Підключений ≠ прийнятий. Cookies існують, щоб SYN-флуд не заблокував справжніх клієнтів.</dd>
+</dl>
+
+<h3>Які хибні уявлення виправляє демо</h3>
+<ul>
+  <li>«<code>accept()</code> виконує рукостискання». Ні, лише забирає з черги.</li>
+  <li>«<code>connect()</code> успішний = сервер прийняв з'єднання». Ні, воно може довго чекати в черзі (або, з cookies, сервер про нього навіть не знає).</li>
+  <li>«Якщо сервер зайнятий, клієнт одразу отримає відмову». Ні, отримає тишу й повтори; відмова (RST) буває, коли порт закритий.</li>
+  <li>«backlog = точна кількість з'єднань». Linux дає backlog + 1, macOS рівно backlog, а при одночасних connect() Linux один раз показав навіть 4.</li>
+  <li>«Send-Q у ss завжди означає байти». Для LISTEN це backlog.</li>
+</ul>
+
+<div class="box warn"><span class="tag">Увага: застереження з тестування</span>
+<ul>
+  <li><strong>macOS:</strong> Enter протягом ~4 с після знімка черги, інакше <code>ETIMEDOUT</code>. <code>AUTO=1</code> натискає за вас.</li>
+  <li><strong>Linux:</strong> один прогін з 5 одночасними nc показав <code>Recv-Q 4</code> замість 3 (перегони між ядрами CPU; в 9 інших прогонах було 3).</li>
+  <li><strong>macOS <code>netstat -s -p tcp</code></strong> показував 0 listen queue overflow навіть після переповнень: як доказ не використовувати.</li>
+  <li><strong>Чого не бачили:</strong> класичного «сервер у SYN-RECV повторює SYN-ACK» не було в жодному прогоні; <code>tcp_abort_on_overflow=1</code> (RST замість мовчання) не перевіряли. На Linux клієнти ще повторювали SYN після 19 с, момент, коли вони здаються, не чекали.</li>
+  <li>Для ручного варіанту з nc завжди <code>nc -d</code>.</li>
+</ul></div>
+
+<p class="sub">Усі числа з реальних прогонів 22–23.10.2026 (macOS 15 / Darwin 24.6; Linux 6.12.76-linuxkit у Docker 29). Порти й час змінюються від прогону до прогону.</p>
+</main>
+</body>
+</html>

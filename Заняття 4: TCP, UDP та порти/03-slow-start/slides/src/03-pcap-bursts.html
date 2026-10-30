@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="term.css"></head><body><div class="win">
+<div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">./run_demo.sh — перевірка по capture.pcap (tcpdump)</span></div>
+<pre><span class="p">$</span> <span class="cmd">./run_demo.sh</span>
+<span class="mu">…</span>
+Підключено до 127.0.0.1:9103, <span class="cy">рукостискання зайняло 203 мс</span>   <span class="an">← SYN → SYN-ACK: один RTT</span>
+<span class="mu">…</span>
+=== Те саме з capture.pcap: сегменти з даними, згруповані в «пачки» (пауза > 50 мс = новий RTT) ===
+  t= <span class="cy">0.000</span> с  сегментів:    <span class="cw">10</span>
+  t= <span class="cy">0.202</span> с  сегментів:    <span class="cw">20</span>   <span class="an">← +202 мс: наступна пачка вдвічі більша</span>
+  t= <span class="cy">0.404</span> с  сегментів:    <span class="cw">40</span>
+  t= <span class="cy">0.606</span> с  сегментів:    <span class="cw">80</span>
+  t= <span class="cy">0.808</span> с  сегментів:   <span class="cw">160</span>
+  t= <span class="cy">1.010</span> с  сегментів:   <span class="cw">320</span>
+  t= <span class="cy">1.212</span> с  сегментів:   <span class="cw">640</span>
+  t= <span class="cy">1.415</span> с  сегментів:   <span class="cw">903</span>   <span class="an">← решта файлу (3 МБ)</span>
+
+capture.pcap: 2555 пакетів (0 packets dropped by kernel); Wireshark → Statistics → TCP Stream Graphs → Stevens</pre>
+</div></body></html>
